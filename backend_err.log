@@ -1,0 +1,4 @@
+   Compiling hfs-backend v0.1.0 (D:\Code\family_financial_system\backend)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 6.25s
+     Running `D:\Data\Cache\rust\target\debug\hfs-backend.exe serve`
+error: process didn't exit successfully: `D:\Data\Cache\rust\target\debug\hfs-backend.exe serve` (exit code: 0xffffffff)

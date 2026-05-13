@@ -1,0 +1,22 @@
+[Unit]
+Description=HFS Scheduler Service
+After=network.target mysql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hfs
+Group=hfs
+WorkingDirectory=/opt/hfs/backend
+EnvironmentFile=/etc/hfs/hfs-scheduler.env
+ExecStart=/opt/hfs/backend/target/release/hfs-backend scheduler
+Restart=always
+RestartSec=5
+KillSignal=SIGINT
+TimeoutStopSec=20
+NoNewPrivileges=true
+PrivateTmp=true
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

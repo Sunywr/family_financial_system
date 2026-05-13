@@ -1,0 +1,62 @@
+CREATE TABLE IF NOT EXISTS strategy_configs (
+    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'Primary key',
+    user_id BIGINT UNSIGNED NOT NULL COMMENT 'Owner user id',
+    investment_type VARCHAR(16) NOT NULL COMMENT 'stock or wealth',
+    target_code VARCHAR(64) NULL COMMENT 'Specific investment code, null means generic strategy',
+    strategy_name VARCHAR(128) NOT NULL COMMENT 'Strategy display name',
+    enabled TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'Whether strategy is enabled',
+    risk_level VARCHAR(16) NOT NULL DEFAULT 'balanced' COMMENT 'low balanced high',
+    preferred_min_score INT NOT NULL DEFAULT 60 COMMENT 'Minimum score for positive suggestion',
+    cooldown_days INT NOT NULL DEFAULT 3 COMMENT 'Cooling days after opening position',
+    take_profit_rate DECIMAL(18,6) NOT NULL DEFAULT 0.150000 COMMENT 'Take profit rate threshold',
+    stop_loss_rate DECIMAL(18,6) NOT NULL DEFAULT 0.080000 COMMENT 'Stop loss rate threshold',
+    notes VARCHAR(255) NULL COMMENT 'Notes',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Created time',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Updated time',
+    deleted_at DATETIME NULL COMMENT 'Soft delete time',
+    UNIQUE KEY uk_strategy_configs_user_type_code (user_id, investment_type, target_code),
+    KEY idx_strategy_configs_user_type_enabled (user_id, investment_type, enabled)
+) COMMENT='Strategy configs';
+
+CREATE TABLE IF NOT EXISTS stock_indicators (
+    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'Primary key',
+    investment_id BIGINT UNSIGNED NOT NULL COMMENT 'Investment id',
+    user_id BIGINT UNSIGNED NOT NULL COMMENT 'Owner user id',
+    code VARCHAR(64) NOT NULL COMMENT 'Investment code',
+    indicator_date DATE NOT NULL COMMENT 'Indicator date',
+    current_price DECIMAL(18,6) NOT NULL DEFAULT 0.000000 COMMENT 'Latest price',
+    price_change_rate DECIMAL(18,6) NOT NULL DEFAULT 0.000000 COMMENT 'Price change rate',
+    profit_rate DECIMAL(18,6) NOT NULL DEFAULT 0.000000 COMMENT 'Holding profit rate',
+    ma_bias DECIMAL(18,6) NOT NULL DEFAULT 0.000000 COMMENT 'Moving average bias proxy',
+    volume_ratio DECIMAL(18,6) NOT NULL DEFAULT 1.000000 COMMENT 'Volume ratio proxy',
+    score INT NOT NULL DEFAULT 0 COMMENT 'Computed score',
+    suggestion VARCHAR(32) NOT NULL DEFAULT '观察' COMMENT 'Buy watch reduce sell cooldown',
+    reason VARCHAR(255) NOT NULL COMMENT 'Reason summary',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Created time',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Updated time',
+    deleted_at DATETIME NULL COMMENT 'Soft delete time',
+    UNIQUE KEY uk_stock_indicators_investment_date (investment_id, indicator_date),
+    KEY idx_stock_indicators_user_date_score (user_id, indicator_date, score)
+) COMMENT='Stock indicators and scores';
+
+CREATE TABLE IF NOT EXISTS wealth_indicators (
+    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'Primary key',
+    investment_id BIGINT UNSIGNED NOT NULL COMMENT 'Investment id',
+    user_id BIGINT UNSIGNED NOT NULL COMMENT 'Owner user id',
+    code VARCHAR(64) NOT NULL COMMENT 'Investment code',
+    indicator_date DATE NOT NULL COMMENT 'Indicator date',
+    current_nav DECIMAL(18,6) NOT NULL DEFAULT 0.000000 COMMENT 'Latest nav',
+    annualized_return_1d DECIMAL(18,6) NOT NULL DEFAULT 0.000000 COMMENT 'Annualized proxy 1d',
+    annualized_return_7d DECIMAL(18,6) NOT NULL DEFAULT 0.000000 COMMENT 'Annualized proxy 7d',
+    annualized_return_30d DECIMAL(18,6) NOT NULL DEFAULT 0.000000 COMMENT 'Annualized proxy 30d',
+    drawdown_proxy DECIMAL(18,6) NOT NULL DEFAULT 0.000000 COMMENT 'Drawdown proxy',
+    profit_rate DECIMAL(18,6) NOT NULL DEFAULT 0.000000 COMMENT 'Holding profit rate',
+    score INT NOT NULL DEFAULT 0 COMMENT 'Computed score',
+    suggestion VARCHAR(32) NOT NULL DEFAULT '观望' COMMENT 'DCA hold take_profit watch',
+    reason VARCHAR(255) NOT NULL COMMENT 'Reason summary',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Created time',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Updated time',
+    deleted_at DATETIME NULL COMMENT 'Soft delete time',
+    UNIQUE KEY uk_wealth_indicators_investment_date (investment_id, indicator_date),
+    KEY idx_wealth_indicators_user_date_score (user_id, indicator_date, score)
+) COMMENT='Wealth indicators and scores';

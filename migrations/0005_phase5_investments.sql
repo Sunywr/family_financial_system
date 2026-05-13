@@ -1,0 +1,43 @@
+CREATE TABLE IF NOT EXISTS investments (
+    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'Primary key',
+    user_id BIGINT UNSIGNED NOT NULL COMMENT 'Owner user id',
+    source_bill_id BIGINT UNSIGNED NULL COMMENT 'First source bill id',
+    investment_type VARCHAR(16) NOT NULL COMMENT 'stock or wealth',
+    name VARCHAR(128) NOT NULL COMMENT 'Investment product name',
+    code VARCHAR(64) NOT NULL COMMENT 'Investment product code',
+    organization_name VARCHAR(128) NOT NULL COMMENT 'Organization or broker name',
+    market VARCHAR(64) NULL COMMENT 'Reserved market field',
+    total_shares DECIMAL(18,6) NOT NULL DEFAULT 0.000000 COMMENT 'Current total shares',
+    total_cost DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'Current total cost',
+    average_cost DECIMAL(18,6) NOT NULL DEFAULT 0.000000 COMMENT 'Average cost per share',
+    current_price DECIMAL(18,6) NOT NULL DEFAULT 0.000000 COMMENT 'Latest price or nav',
+    market_value DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'Current market value',
+    realized_profit DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'Realized profit amount',
+    unrealized_profit DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'Unrealized profit amount',
+    total_profit DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'Total profit amount',
+    total_profit_rate DECIMAL(18,6) NOT NULL DEFAULT 0.000000 COMMENT 'Total profit rate',
+    status VARCHAR(32) NOT NULL DEFAULT 'holding' COMMENT 'holding sold archived',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Created time',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Updated time',
+    deleted_at DATETIME NULL COMMENT 'Soft delete time',
+    UNIQUE KEY uk_investments_user_type_code (user_id, investment_type, code),
+    KEY idx_investments_user_status (user_id, status)
+) COMMENT='Investments';
+
+CREATE TABLE IF NOT EXISTS investment_transactions (
+    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'Primary key',
+    investment_id BIGINT UNSIGNED NOT NULL COMMENT 'Investment id',
+    source_bill_id BIGINT UNSIGNED NOT NULL COMMENT 'Source bill id',
+    transaction_date DATE NOT NULL COMMENT 'Transaction date',
+    action VARCHAR(32) NOT NULL COMMENT 'open_position add_position reduce_position dividend',
+    shares DECIMAL(18,6) NOT NULL DEFAULT 0.000000 COMMENT 'Transaction share amount',
+    amount DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'Transaction amount',
+    unit_price DECIMAL(18,6) NOT NULL DEFAULT 0.000000 COMMENT 'Unit price from transaction',
+    realized_profit DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'Realized profit for this transaction',
+    remark VARCHAR(255) NULL COMMENT 'Remark',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Created time',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Updated time',
+    deleted_at DATETIME NULL COMMENT 'Soft delete time',
+    KEY idx_investment_transactions_investment_date (investment_id, transaction_date),
+    KEY idx_investment_transactions_source_bill (source_bill_id)
+) COMMENT='Investment transactions';

@@ -1,0 +1,21 @@
+[app]
+name = "hfs-backend"
+host = "127.0.0.1"
+port = 8080
+log_level = "info"
+
+[database]
+url = "mysql://hfs:replace_me@127.0.0.1:3306/hfs"
+min_connections = 0
+max_connections = 8
+connect_timeout_secs = 5
+idle_timeout_secs = 300
+acquire_timeout_secs = 5
+lazy_connect = true
+
+[scheduler]
+tick_seconds = 30
+
+[auth]
+jwt_secret = "replace-me"
+access_token_ttl_minutes = 720
