@@ -3,13 +3,20 @@
     <div class="head">
       <h2>投资仪表盘</h2>
       <div class="actions">
+        <el-switch
+          v-if="isAdmin"
+          v-model="onlyMine"
+          active-text="仅看我购买"
+          inactive-text="查看全部"
+          @change="search"
+        />
         <el-switch v-model="showSold" active-text="展示已出售" @change="loadData" />
         <el-input v-model="keyword" placeholder="全文检索（名称/代码/ID）" style="width: 280px;" />
-        <el-button @click="loadData">查询</el-button>
+        <el-button @click="search">查询</el-button>
       </div>
     </div>
 
-    <el-tabs v-model="tab" @tab-change="loadData">
+    <el-tabs v-model="tab" @tab-change="search">
       <el-tab-pane label="股票" name="stock" />
       <el-tab-pane label="理财" name="wealth" />
     </el-tabs>
@@ -22,7 +29,11 @@
 
     <el-table :data="investments.list" stripe>
       <el-table-column prop="id" label="ID" width="90" />
-      <el-table-column prop="name" label="名称" min-width="180" />
+      <el-table-column label="名称" min-width="180">
+        <template #default="{ row }">
+          {{ displayInvestmentName(row) }}
+        </template>
+      </el-table-column>
       <el-table-column prop="code" label="代码" width="120" />
       <el-table-column v-if="tab === 'stock'" label="类型" width="120">
         <template #default="{ row }">
@@ -59,6 +70,17 @@
         </template>
       </el-table-column>
     </el-table>
+    <div class="pagination-wrap">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-sizes="[20, 50, 100]"
+        :total="investments.total"
+        layout="total, sizes, prev, pager, next"
+        @current-change="loadData"
+        @size-change="loadData"
+      />
+    </div>
   </section>
 </template>
 
@@ -67,12 +89,17 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { fetchDashboardSummary } from '@/api/dashboard'
 import { fetchInvestments, type Investment } from '@/api/investments'
-import { requireCurrentUserId } from '@/api/client'
+import { getStoredUser, requireCurrentUserId } from '@/api/client'
 
 const tab = ref<'stock' | 'wealth'>('stock')
 const keyword = ref('')
 const showSold = ref(false)
+const onlyMine = ref(true)
+const currentPage = ref(1)
+const pageSize = ref(50)
 const currentUserId = requireCurrentUserId()
+const currentUser = getStoredUser()
+const isAdmin = computed(() => currentUser?.username === 'admin')
 const today = new Date().toISOString().slice(0, 10)
 
 const investments = ref<{ list: Investment[]; total: number }>({ list: [], total: 0 })
@@ -120,8 +147,18 @@ function formatPosition(item: Investment) {
   return `${((marketValue / total) * 100).toFixed(2)}%`
 }
 
+function displayInvestmentName(item: Investment) {
+  if (tab.value === 'stock' && item.name === item.organization_name) {
+    return `股票 ${item.code}`
+  }
+  return item.name || item.organization_name || item.code
+}
+
 async function loadData() {
   const data = await fetchInvestments({
+    user_id: !isAdmin.value || onlyMine.value ? currentUserId : undefined,
+    page: currentPage.value,
+    page_size: pageSize.value,
     investment_type: tab.value,
     show_sold: showSold.value,
     keyword: keyword.value || undefined
@@ -133,6 +170,11 @@ async function loadData() {
     end_date: today
   })
   stockIdleCash.value = summary.stock_idle_cash
+}
+
+function search() {
+  currentPage.value = 1
+  loadData()
 }
 
 onMounted(async () => {
@@ -168,5 +210,10 @@ onMounted(async () => {
   display: flex;
   gap: 10px;
   margin-bottom: 12px;
+}
+.pagination-wrap {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

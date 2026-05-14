@@ -27,6 +27,17 @@
         </template>
       </el-table-column>
     </el-table>
+    <div class="pagination-wrap">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-sizes="[20, 50, 100]"
+        :total="jobs.total"
+        layout="total, sizes, prev, pager, next"
+        @current-change="loadJobs"
+        @size-change="loadJobs"
+      />
+    </div>
 
     <el-dialog v-model="dialogVisible" title="编辑任务配置" width="560px">
       <el-form label-width="130px">
@@ -66,6 +77,8 @@ import { ElMessage } from 'element-plus'
 import { fetchJobs, triggerJob, updateJob, type JobConfig } from '@/api/jobs'
 
 const jobs = ref<{ list: JobConfig[]; total: number }>({ list: [], total: 0 })
+const currentPage = ref(1)
+const pageSize = ref(20)
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
 const form = ref({
@@ -79,7 +92,7 @@ const form = ref({
 })
 
 async function loadJobs() {
-  const data = await fetchJobs()
+  const data = await fetchJobs(currentPage.value, pageSize.value)
   jobs.value = { list: data.list, total: data.total }
 }
 
@@ -150,5 +163,10 @@ onMounted(async () => {
 .toolbar p {
   margin: 8px 0 0;
   color: #64748b;
+}
+.pagination-wrap {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

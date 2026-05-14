@@ -58,6 +58,7 @@ pub async fn list(
     let keyword = query.keyword.as_ref().map(|value| format!("%{value}%"));
     let user_id = query.user_id.map(parse_u64_id).transpose()?;
     let category_id = query.category_id.map(parse_u64_id).transpose()?;
+    let credit_card_id = query.credit_card_id.map(parse_u64_id).transpose()?;
 
     let total_row = sqlx::query(
         "SELECT COUNT(*) AS total
@@ -65,6 +66,7 @@ pub async fn list(
          WHERE deleted_at IS NULL
            AND (? IS NULL OR user_id = ?)
            AND (? IS NULL OR category_id = ?)
+                     AND (? IS NULL OR credit_card_id = ?)
            AND (? IS NULL OR bill_type = ?)
            AND (? IS NULL OR payment_method = ?)
            AND (? IS NULL OR account_date >= ?)
@@ -75,6 +77,8 @@ pub async fn list(
     .bind(user_id)
     .bind(category_id)
     .bind(category_id)
+    .bind(credit_card_id)
+    .bind(credit_card_id)
     .bind(&query.bill_type)
     .bind(&query.bill_type)
     .bind(&query.payment_method)
@@ -101,6 +105,7 @@ pub async fn list(
          WHERE deleted_at IS NULL
            AND (? IS NULL OR user_id = ?)
            AND (? IS NULL OR category_id = ?)
+                     AND (? IS NULL OR credit_card_id = ?)
            AND (? IS NULL OR bill_type = ?)
            AND (? IS NULL OR payment_method = ?)
            AND (? IS NULL OR account_date >= ?)
@@ -113,6 +118,8 @@ pub async fn list(
     .bind(user_id)
     .bind(category_id)
     .bind(category_id)
+    .bind(credit_card_id)
+    .bind(credit_card_id)
     .bind(&query.bill_type)
     .bind(&query.bill_type)
     .bind(&query.payment_method)

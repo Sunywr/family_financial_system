@@ -4,7 +4,7 @@
       <h2>股票流水</h2>
       <div class="actions">
         <el-input v-model="keyword" placeholder="全文检索（动作/备注/ID）" style="width: 280px;" />
-        <el-button @click="loadData">查询</el-button>
+        <el-button @click="search">查询</el-button>
       </div>
     </div>
     <el-table :data="transactions.list" stripe>
@@ -25,6 +25,17 @@
         </template>
       </el-table-column>
     </el-table>
+    <div class="pagination-wrap">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-sizes="[20, 50, 100]"
+        :total="transactions.total"
+        layout="total, sizes, prev, pager, next"
+        @current-change="loadData"
+        @size-change="loadData"
+      />
+    </div>
   </section>
 </template>
 
@@ -37,6 +48,8 @@ import {
 } from '@/api/investment-transactions'
 
 const keyword = ref('')
+const currentPage = ref(1)
+const pageSize = ref(50)
 const transactions = ref<{ list: InvestmentTransaction[]; total: number }>({ list: [], total: 0 })
 const actionMap: Record<string, string> = {
   open_position: '建仓',
@@ -46,7 +59,12 @@ const actionMap: Record<string, string> = {
 }
 
 async function loadData() {
-  transactions.value = await fetchInvestmentTransactions(keyword.value)
+  transactions.value = await fetchInvestmentTransactions(keyword.value, currentPage.value, pageSize.value)
+}
+
+function search() {
+  currentPage.value = 1
+  loadData()
 }
 
 onMounted(async () => {
@@ -75,5 +93,10 @@ onMounted(async () => {
 .actions {
   display: flex;
   gap: 10px;
+}
+.pagination-wrap {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

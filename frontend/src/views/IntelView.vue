@@ -21,6 +21,17 @@
         </template>
       </el-table-column>
     </el-table>
+    <div class="pagination-wrap">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-sizes="[20, 50, 100]"
+        :total="intel.total"
+        layout="total, sizes, prev, pager, next"
+        @current-change="loadIntel"
+        @size-change="loadIntel"
+      />
+    </div>
 
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑情报' : '新增情报'" width="640px">
       <el-form label-width="90px">
@@ -68,6 +79,8 @@ import { requireCurrentUserId } from '@/api/client'
 import { createIntel, deleteIntel, fetchIntel, updateIntel, type IntelItem } from '@/api/intel'
 
 const intel = ref<{ list: IntelItem[]; total: number }>({ list: [], total: 0 })
+const currentPage = ref(1)
+const pageSize = ref(50)
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
 const currentUserId = requireCurrentUserId()
@@ -96,7 +109,7 @@ function resetForm() {
 }
 
 async function loadIntel() {
-  const data = await fetchIntel()
+  const data = await fetchIntel(currentPage.value, pageSize.value)
   intel.value = { list: data.list, total: data.total }
 }
 
@@ -169,3 +182,11 @@ onMounted(async () => {
   }
 })
 </script>
+
+<style scoped>
+.pagination-wrap {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+</style>

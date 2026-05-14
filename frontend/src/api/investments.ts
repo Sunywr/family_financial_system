@@ -1,4 +1,4 @@
-import { client, type ApiResponse, withCurrentUserId } from './client'
+import { client, type ApiResponse, requireCurrentUserId } from './client'
 import type { PageData } from '@/types/api'
 
 export interface Investment {
@@ -37,25 +37,29 @@ export interface InvestmentRecommendation {
 }
 
 export async function fetchInvestments(params?: {
+  user_id?: number
   investment_type?: string
   show_sold?: boolean
   keyword?: string
+  page?: number
+  page_size?: number
 }) {
   const response = await client.get<ApiResponse<PageData<Investment>>>('/investments', {
-    params: withCurrentUserId({
-      page: 1,
-      page_size: 50,
+    params: {
+      user_id: params?.user_id,
+      page: params?.page ?? 1,
+      page_size: params?.page_size ?? 50,
       investment_type: params?.investment_type,
       show_sold: params?.show_sold,
       keyword: params?.keyword
-    })
+    }
   })
   return response.data.data
 }
 
-export async function fetchTopInvestments(investmentType?: string) {
+export async function fetchTopInvestments(investmentType?: string, userId?: number) {
   const response = await client.get<ApiResponse<InvestmentRecommendation[]>>('/investments/top', {
-    params: withCurrentUserId({ investment_type: investmentType, limit: 20 })
+    params: { investment_type: investmentType, limit: 20, user_id: userId ?? requireCurrentUserId() }
   })
   return response.data.data
 }

@@ -27,7 +27,7 @@
           <el-menu-item index="/debts">债务</el-menu-item>
           <el-menu-item index="/presales">预售</el-menu-item>
           <el-menu-item index="/assets">资产</el-menu-item>
-          <el-menu-item index="/investments">仪表盘</el-menu-item>
+          <el-menu-item index="/investments">投资仪表盘</el-menu-item>
           <el-menu-item index="/investment-transactions">股票流水</el-menu-item>
           <el-menu-item index="/investment-top">TOP20</el-menu-item>
         </el-sub-menu>
@@ -75,9 +75,6 @@
     </aside>
 
     <div class="app-main">
-      <header class="page-header panel">
-        <div class="page-title">{{ currentPageTitle }}</div>
-      </header>
       <main class="page-content">
         <router-view />
       </main>
@@ -98,30 +95,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 const isCollapsed = ref(true)
 
-const pageTitleMap: Record<string, string> = {
-  '/': '首页',
-  '/bills': '账单',
-  '/debts': '债务',
-  '/presales': '预售',
-  '/assets': '资产',
-  '/investments': '投资仪表盘',
-  '/investment-transactions': '股票流水',
-  '/investment-top': 'TOP20',
-  '/strategies': '策略',
-  '/intel': '情报',
-  '/migration-audit': '迁移审计',
-  '/balance-calibrations': '余额校准',
-  '/budgets': '预算',
-  '/brands': '品牌',
-  '/jobs': '任务',
-  '/job-runs': '任务日志',
-  '/users': '用户',
-  '/config': '配置项',
-  '/credit-cards': '信用卡'
-}
-
 const activePath = computed(() => route.path)
-const currentPageTitle = computed(() => pageTitleMap[route.path] || 'FFS')
 const defaultOpeneds = ['finance', 'ops', 'system']
 
 async function handleLogout() {
@@ -215,14 +189,7 @@ async function handleLogout() {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-}
-.page-header {
-  padding: 18px 22px;
-}
-.page-title {
-  font-size: 24px;
-  font-weight: 700;
+  gap: 0;
 }
 @media (max-width: 1280px) {
   .app-sidebar {

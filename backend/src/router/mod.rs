@@ -65,6 +65,10 @@ pub fn create_router(state: AppState) -> Router {
             get(handler::bill_tags::list).post(handler::bill_tags::create),
         )
         .route(
+            "/api/bill-tags/top",
+            get(handler::bill_tags::top_tags),
+        )
+        .route(
             "/api/bill-tags/{id}",
             axum::routing::put(handler::bill_tags::update).delete(handler::bill_tags::delete),
         )

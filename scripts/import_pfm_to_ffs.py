@@ -784,6 +784,7 @@ def import_bills_and_transactions(src, dst, category_maps, debt_category_by_id, 
         account_id = int(row["id"])
         category_id, category_name = category_maps["account"][int(row["account_type_id"])]
         invest_id = int(row["invest_id"]) if row["invest_id"] is not None else None
+        invest_meta = invest_info.get(invest_id) if invest_id is not None else None
         if invest_id is not None:
             invest_sequence[invest_id] += 1
         amount_source = row["expenditure"] if row["expenditure"] not in (None, 0) else row["income"]
@@ -815,7 +816,7 @@ def import_bills_and_transactions(src, dst, category_maps, debt_category_by_id, 
             payment_method = "cash"
 
         investment_action = None
-        if invest_id is not None:
+        if invest_meta is not None:
             description = row["description"] or ""
             if row["income"] not in (None, 0) and ("分红" in description or "收益" in description):
                 investment_action = "dividend"
@@ -847,10 +848,10 @@ def import_bills_and_transactions(src, dst, category_maps, debt_category_by_id, 
                 1 if is_installment else 0,
                 1 if is_installment else None,
                 investment_action,
-                invest_id,
-                invest_info[invest_id]["code"] if invest_id is not None else None,
-                invest_info[invest_id]["description"] if invest_id is not None else None,
-                invest_info[invest_id]["description"] if invest_id is not None else None,
+                invest_id if invest_meta is not None else None,
+                invest_meta["code"] if invest_meta is not None else None,
+                invest_meta["description"] if invest_meta is not None else None,
+                invest_meta["description"] if invest_meta is not None else None,
                 dec6(row["trade_share"]) if row["trade_share"] not in (None, 0) else None,
                 int(row["asset_id"]) if row["asset_id"] is not None else None,
                 "imported",
@@ -859,14 +860,14 @@ def import_bills_and_transactions(src, dst, category_maps, debt_category_by_id, 
             )
         )
 
-        if invest_id is not None:
+        if invest_meta is not None:
             shares = Decimal(str(row["trade_share"] or 0))
             amount_decimal = Decimal(str(amount_source or 0))
             unit_price = Decimal("0")
             if shares > 0:
                 unit_price = amount_decimal / shares
-            elif invest_info[invest_id]["price"] is not None:
-                unit_price = Decimal(str(invest_info[invest_id]["price"]))
+            elif invest_meta["price"] is not None:
+                unit_price = Decimal(str(invest_meta["price"]))
             realized_profit = Decimal("0")
             if investment_action == "dividend":
                 realized_profit = amount_decimal

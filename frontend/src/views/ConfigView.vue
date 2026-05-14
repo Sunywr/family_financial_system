@@ -43,6 +43,17 @@
         </template>
       </el-table-column>
     </el-table>
+    <div class="pagination-wrap">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-sizes="[20, 50, 100]"
+        :total="items.total"
+        layout="total, sizes, prev, pager, next"
+        @current-change="loadItemsOnly"
+        @size-change="loadItemsOnly"
+      />
+    </div>
 
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑配置项' : '新增配置项'" width="520px">
       <el-form label-width="100px">
@@ -93,6 +104,8 @@ import {
 const items = ref<{ list: ConfigItem[]; total: number }>({ list: [], total: 0 })
 const typeOptions = ref<ConfigTypeOption[]>([])
 const filterType = ref('')
+const currentPage = ref(1)
+const pageSize = ref(50)
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
 const form = ref({
@@ -104,8 +117,16 @@ const form = ref({
 })
 
 async function load() {
-  const [types, data] = await Promise.all([fetchConfigTypes(), fetchConfigItems(filterType.value)])
+  const [types, data] = await Promise.all([
+    fetchConfigTypes(),
+    fetchConfigItems(filterType.value, currentPage.value, pageSize.value)
+  ])
   typeOptions.value = types
+  items.value = { list: data.list, total: data.total }
+}
+
+async function loadItemsOnly() {
+  const data = await fetchConfigItems(filterType.value, currentPage.value, pageSize.value)
   items.value = { list: data.list, total: data.total }
 }
 
@@ -183,7 +204,8 @@ async function remove(item: ConfigItem) {
 
 watch(filterType, async () => {
   try {
-    const data = await fetchConfigItems(filterType.value)
+    currentPage.value = 1
+    const data = await fetchConfigItems(filterType.value, currentPage.value, pageSize.value)
     items.value = { list: data.list, total: data.total }
   } catch {
     items.value = { list: [], total: 0 }
@@ -222,5 +244,10 @@ onMounted(async () => {
   display: flex;
   gap: 12px;
   align-items: center;
+}
+.pagination-wrap {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

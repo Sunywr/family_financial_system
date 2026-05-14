@@ -13,6 +13,17 @@
       <el-table-column prop="cash_balance" label="现金余额" width="140" />
       <el-table-column prop="remark" label="备注" min-width="220" />
     </el-table>
+    <div class="pagination-wrap">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-sizes="[20, 50, 100]"
+        :total="calibrations.total"
+        layout="total, sizes, prev, pager, next"
+        @current-change="loadCalibrations"
+        @size-change="loadCalibrations"
+      />
+    </div>
   </section>
 </template>
 
@@ -22,13 +33,27 @@ import { ElMessage } from 'element-plus'
 import { fetchBalanceCalibrations, type BalanceCalibration } from '@/api/balance-calibrations'
 
 const calibrations = ref<{ list: BalanceCalibration[]; total: number }>({ list: [], total: 0 })
+const currentPage = ref(1)
+const pageSize = ref(20)
+
+async function loadCalibrations() {
+  const data = await fetchBalanceCalibrations(undefined, currentPage.value, pageSize.value)
+  calibrations.value = { list: data.list, total: data.total }
+}
 
 onMounted(async () => {
   try {
-    const data = await fetchBalanceCalibrations()
-    calibrations.value = { list: data.list, total: data.total }
+    await loadCalibrations()
   } catch {
     ElMessage.error('余额校准页面初始化失败')
   }
 })
 </script>
+
+<style scoped>
+.pagination-wrap {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+</style>

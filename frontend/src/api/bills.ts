@@ -13,6 +13,14 @@ export interface Bill {
   amount: string
   tags: string[]
   remark?: string | null
+  transfer_group_id?: string | null
+  transfer_target_type?: string | null
+  transfer_target_user_id?: number | null
+  credit_card_id?: number | null
+  investment_action?: string | null
+  related_investment_id?: number | null
+  related_asset_id?: number | null
+  product_name?: string | null
   special_status: string
 }
 
@@ -45,9 +53,26 @@ export interface CreateBillPayload {
   share_amount?: string
 }
 
-export async function fetchBills(keyword = '') {
+export interface BillListFilters {
+  category_id?: number
+  payment_method?: string
+  credit_card_id?: number
+  start_date?: string
+  end_date?: string
+}
+
+export async function fetchBills(keyword = '', page = 1, pageSize = 20, filters: BillListFilters = {}) {
   const response = await client.get<ApiResponse<PageData<Bill>>>('/bills', {
-    params: withCurrentUserId({ page: 1, page_size: 20, keyword: keyword || undefined })
+    params: {
+      page,
+      page_size: pageSize,
+      keyword: keyword || undefined,
+      category_id: filters.category_id,
+      payment_method: filters.payment_method,
+      credit_card_id: filters.credit_card_id,
+      start_date: filters.start_date,
+      end_date: filters.end_date
+    }
   })
   return response.data.data
 }

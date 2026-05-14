@@ -30,6 +30,16 @@ export interface CashTrendPoint {
   date: string
   cash_balance: string
   anchor_date?: string | null
+  mark_points?: CashTrendMarkPoint[]
+}
+
+export interface CashTrendMarkPoint {
+  debt_id: number
+  debt_name: string
+  debt_type: string
+  due_date: string
+  amount: string
+  balance_after: string
 }
 
 export async function fetchDashboardSummary(params: {

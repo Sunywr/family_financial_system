@@ -17,6 +17,17 @@
       <el-table-column prop="message" label="消息" min-width="220" />
       <el-table-column prop="error_message" label="错误" min-width="220" />
     </el-table>
+    <div class="pagination-wrap">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-sizes="[20, 50, 100]"
+        :total="runs.total"
+        layout="total, sizes, prev, pager, next"
+        @current-change="loadRuns"
+        @size-change="loadRuns"
+      />
+    </div>
   </section>
 </template>
 
@@ -26,13 +37,27 @@ import { ElMessage } from 'element-plus'
 import { fetchJobRuns, type JobRun } from '@/api/jobs'
 
 const runs = ref<{ list: JobRun[]; total: number }>({ list: [], total: 0 })
+const currentPage = ref(1)
+const pageSize = ref(20)
+
+async function loadRuns() {
+  const data = await fetchJobRuns(currentPage.value, pageSize.value)
+  runs.value = { list: data.list, total: data.total }
+}
 
 onMounted(async () => {
   try {
-    const data = await fetchJobRuns()
-    runs.value = { list: data.list, total: data.total }
+    await loadRuns()
   } catch {
     ElMessage.error('任务日志页面初始化失败')
   }
 })
 </script>
+
+<style scoped>
+.pagination-wrap {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+</style>

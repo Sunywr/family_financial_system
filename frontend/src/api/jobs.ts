@@ -35,16 +35,16 @@ export interface JobRun {
   error_message?: string | null
 }
 
-export async function fetchJobs() {
+export async function fetchJobs(page = 1, pageSize = 20) {
   const response = await client.get<ApiResponse<PageData<JobConfig>>>('/jobs', {
-    params: { page: 1, page_size: 20 }
+    params: { page, page_size: pageSize }
   })
   return response.data.data
 }
 
-export async function fetchJobRuns() {
+export async function fetchJobRuns(page = 1, pageSize = 20) {
   const response = await client.get<ApiResponse<PageData<JobRun>>>('/jobs/runs', {
-    params: { page: 1, page_size: 20 }
+    params: { page, page_size: pageSize }
   })
   return response.data.data
 }

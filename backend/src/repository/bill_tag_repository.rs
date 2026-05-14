@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+﻿use chrono::NaiveDateTime;
 use sqlx::Row;
 
 use crate::{
@@ -31,11 +31,10 @@ pub async fn list(
          FROM bill_tags
          WHERE deleted_at IS NULL
            AND (? IS NULL OR user_id = ?)
-           AND (? IS NULL OR name LIKE ? OR CAST(id AS CHAR) LIKE ?)",
+           AND (? IS NULL OR name LIKE ?)",
     )
     .bind(user_id)
     .bind(user_id)
-    .bind(&keyword)
     .bind(&keyword)
     .bind(&keyword)
     .fetch_one(pool)
@@ -47,13 +46,12 @@ pub async fn list(
          FROM bill_tags
          WHERE deleted_at IS NULL
            AND (? IS NULL OR user_id = ?)
-           AND (? IS NULL OR name LIKE ? OR CAST(id AS CHAR) LIKE ?)
+           AND (? IS NULL OR name LIKE ?)
          ORDER BY id DESC
          LIMIT ? OFFSET ?",
     )
     .bind(user_id)
     .bind(user_id)
-    .bind(&keyword)
     .bind(&keyword)
     .bind(&keyword)
     .bind(query.pagination.page_size)
@@ -129,4 +127,31 @@ pub async fn soft_delete(pool: &sqlx::MySqlPool, id: u64) -> Result<(), AppError
         return Err(AppError::NotFound);
     }
     Ok(())
+}
+
+/// Returns up to 20 most frequently used tag names for a user, ordered by usage count DESC.
+pub async fn top_tags(pool: &sqlx::MySqlPool, user_id: u64) -> Result<Vec<BillTag>, AppError> {
+    let user_id_i64 = parse_u64_id(user_id)?;
+    let rows = sqlx::query(
+        "SELECT bt.id, bt.user_id, bt.name, bt.color, bt.created_at, bt.updated_at
+         FROM bill_tags bt
+         LEFT JOIN (
+             SELECT jt.tag_name, COUNT(*) AS usage_count
+             FROM bills b
+             JOIN JSON_TABLE(b.tags, '$[*]' COLUMNS (tag_name VARCHAR(64) PATH '$')) AS jt
+             WHERE b.user_id = ? AND b.deleted_at IS NULL
+             GROUP BY jt.tag_name
+         ) usage ON usage.tag_name = bt.name
+         WHERE bt.user_id = ? AND bt.deleted_at IS NULL
+         ORDER BY COALESCE(usage.usage_count, 0) DESC, bt.id DESC
+         LIMIT 20",
+    )
+    .bind(user_id_i64)
+    .bind(user_id_i64)
+    .fetch_all(pool)
+    .await?;
+    rows.into_iter()
+        .map(map_row)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(AppError::from)
 }

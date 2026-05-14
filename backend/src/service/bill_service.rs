@@ -20,7 +20,7 @@ use crate::{
     },
 };
 
-const PAYMENT_METHODS: &[&str] = &["cash", "credit_card", "installment", "presale"];
+const PAYMENT_METHODS: &[&str] = &["cash", "credit_card", "installment", "presale", "stock_account"];
 const NORMAL_BILL_TYPES: &[&str] = &["income", "expense", "refund"];
 const INVESTMENT_BILL_TYPES: &[&str] = &[
     "open_position",
@@ -30,17 +30,42 @@ const INVESTMENT_BILL_TYPES: &[&str] = &[
 ];
 const TRANSFER_TARGET_TYPES: &[&str] = &["system_user", "other_person"];
 
-pub async fn list(state: &AppState, query: &BillListQuery) -> Result<(Vec<Bill>, u64), AppError> {
-    bill_repository::list(state.db()?, query).await
+pub async fn list(state: &AppState, query: &BillListQuery, auth_user_id: u64) -> Result<(Vec<Bill>, u64), AppError> {
+    let pool = state.db()?;
+    let auth_user = user_repository::find_by_id(pool, auth_user_id).await?;
+    let effective_user_id = if auth_user.username == "admin" {
+        query.user_id
+    } else {
+        Some(auth_user_id)
+    };
+    let effective_query = BillListQuery {
+        pagination: query.pagination.clone(),
+        user_id: effective_user_id,
+        category_id: query.category_id,
+        credit_card_id: query.credit_card_id,
+        bill_type: query.bill_type.clone(),
+        payment_method: query.payment_method.clone(),
+        start_date: query.start_date,
+        end_date: query.end_date,
+        keyword: query.keyword.clone(),
+    };
+    bill_repository::list(pool, &effective_query).await
 }
 
 pub async fn detail(state: &AppState, id: u64) -> Result<Bill, AppError> {
     bill_repository::find_by_id(state.db()?, id).await
 }
 
-pub async fn create(state: &AppState, payload: &CreateBillRequest) -> Result<Bill, AppError> {
+pub async fn create(state: &AppState, payload: &CreateBillRequest, auth_user_id: u64) -> Result<Bill, AppError> {
     let pool = state.db()?;
     let category = validate_create_payload(state, payload).await?;
+    // non-admin users can only create bills for themselves
+    let auth_user = user_repository::find_by_id(pool, auth_user_id).await?;
+    if auth_user.username != "admin" && payload.user_id != auth_user_id {
+        return Err(AppError::BadRequest(
+            "non-admin users can only create bills for themselves".to_string(),
+        ));
+    }
     ensure_tags_exist(state, payload.user_id, payload.tags.as_deref()).await?;
     let special_status = derive_special_status(&category, payload);
 
@@ -249,9 +274,9 @@ async fn validate_special_fields(
     is_fixed_asset: bool,
 ) -> Result<(), AppError> {
     if is_investment_category(category) {
-        if payment_method != "cash" {
+        if payment_method != "cash" && payment_method != "stock_account" {
             return Err(AppError::BadRequest(
-                "investment category bills must use cash payment_method".to_string(),
+                "investment category bills must use cash or stock_account payment_method".to_string(),
             ));
         }
         if !INVESTMENT_BILL_TYPES.contains(&bill_type) {

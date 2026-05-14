@@ -14,10 +14,10 @@ export interface InvestmentTransaction {
   remark?: string | null
 }
 
-export async function fetchInvestmentTransactions(keyword = '') {
+export async function fetchInvestmentTransactions(keyword = '', page = 1, pageSize = 50) {
   const response = await client.get<ApiResponse<PageData<InvestmentTransaction>>>(
     '/investment-transactions',
-    { params: { page: 1, page_size: 50, keyword: keyword || undefined } }
+    { params: { page, page_size: pageSize, keyword: keyword || undefined } }
   )
   return response.data.data
 }

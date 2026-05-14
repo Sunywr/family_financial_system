@@ -39,3 +39,10 @@ pub async fn update(
 pub async fn delete(state: &AppState, id: u64) -> Result<(), AppError> {
     bill_tag_repository::soft_delete(state.db()?, id).await
 }
+
+pub async fn top_tags(
+    state: &AppState,
+    user_id: u64,
+) -> Result<Vec<crate::model::bill_tag::BillTag>, AppError> {
+    bill_tag_repository::top_tags(state.db()?, user_id).await
+}

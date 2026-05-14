@@ -14,9 +14,9 @@ export interface Presale {
   remark?: string | null
 }
 
-export async function fetchPresales(keyword = '') {
+export async function fetchPresales(keyword = '', page = 1, pageSize = 20) {
   const response = await client.get<ApiResponse<PageData<Presale>>>('/presales', {
-    params: withCurrentUserId({ page: 1, page_size: 20, keyword: keyword || undefined })
+    params: withCurrentUserId({ page, page_size: pageSize, keyword: keyword || undefined })
   })
   return response.data.data
 }

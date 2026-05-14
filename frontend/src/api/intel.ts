@@ -24,9 +24,9 @@ export interface IntelPayload {
   content?: string | null
 }
 
-export async function fetchIntel() {
+export async function fetchIntel(page = 1, pageSize = 50) {
   const response = await client.get<ApiResponse<PageData<IntelItem>>>('/intel', {
-    params: withCurrentUserId({ page: 1, page_size: 50 })
+    params: withCurrentUserId({ page, page_size: pageSize })
   })
   return response.data.data
 }

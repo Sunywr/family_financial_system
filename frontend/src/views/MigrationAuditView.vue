@@ -39,7 +39,7 @@
         </div>
       </div>
 
-      <el-table :data="summary?.modules ?? []" stripe>
+      <el-table :data="pagedModules" stripe>
         <el-table-column prop="label" label="模块" min-width="120" />
         <el-table-column prop="source_table" label="旧表" min-width="180" />
         <el-table-column prop="target_table" label="新表" min-width="180" />
@@ -61,6 +61,15 @@
         </el-table-column>
         <el-table-column prop="note" label="说明" min-width="280" show-overflow-tooltip />
       </el-table>
+      <div class="pagination-wrap">
+        <el-pagination
+          v-model:current-page="modulesPage"
+          v-model:page-size="modulesPageSize"
+          :page-sizes="[20, 50, 100]"
+          :total="allModules.length"
+          layout="total, sizes, prev, pager, next"
+        />
+      </div>
     </section>
 
     <section class="panel audit-section">
@@ -73,7 +82,7 @@
         </div>
       </div>
 
-      <el-table :data="summary?.users ?? []" stripe>
+      <el-table :data="pagedUsers" stripe>
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="username" label="用户名" min-width="150" />
         <el-table-column prop="display_name" label="显示名" min-width="150" />
@@ -93,6 +102,15 @@
           </template>
         </el-table-column>
       </el-table>
+      <div class="pagination-wrap">
+        <el-pagination
+          v-model:current-page="usersPage"
+          v-model:page-size="usersPageSize"
+          :page-sizes="[20, 50, 100]"
+          :total="allUsers.length"
+          layout="total, sizes, prev, pager, next"
+        />
+      </div>
     </section>
 
     <section class="panel audit-section">
@@ -112,7 +130,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   fetchMigrationAuditSummary,
@@ -120,6 +138,20 @@ import {
 } from '@/api/migration-audit'
 
 const summary = ref<MigrationAuditSummary | null>(null)
+const modulesPage = ref(1)
+const modulesPageSize = ref(20)
+const usersPage = ref(1)
+const usersPageSize = ref(20)
+const allModules = computed(() => summary.value?.modules ?? [])
+const allUsers = computed(() => summary.value?.users ?? [])
+const pagedModules = computed(() => {
+  const start = (modulesPage.value - 1) * modulesPageSize.value
+  return allModules.value.slice(start, start + modulesPageSize.value)
+})
+const pagedUsers = computed(() => {
+  const start = (usersPage.value - 1) * usersPageSize.value
+  return allUsers.value.slice(start, start + usersPageSize.value)
+})
 
 function statusTagType(status: string) {
   if (status === 'matched') {
@@ -143,6 +175,8 @@ function statusLabel(status: string) {
 
 async function loadSummary() {
   summary.value = await fetchMigrationAuditSummary()
+  modulesPage.value = 1
+  usersPage.value = 1
 }
 
 onMounted(async () => {
@@ -205,5 +239,10 @@ onMounted(async () => {
   padding-left: 18px;
   color: #334155;
   line-height: 1.7;
+}
+.pagination-wrap {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

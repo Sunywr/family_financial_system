@@ -13,9 +13,9 @@ export interface Brand {
   remark?: string | null
 }
 
-export async function fetchBrands() {
+export async function fetchBrands(page = 1, pageSize = 20) {
   const response = await client.get<ApiResponse<PageData<Brand>>>('/brands', {
-    params: withCurrentUserId({ page: 1, page_size: 20 })
+    params: withCurrentUserId({ page, page_size: pageSize })
   })
   return response.data.data
 }

@@ -30,9 +30,9 @@ export interface StrategyPayload {
   notes?: string | null
 }
 
-export async function fetchStrategies() {
+export async function fetchStrategies(page = 1, pageSize = 50) {
   const response = await client.get<ApiResponse<PageData<StrategyConfig>>>('/strategies', {
-    params: withCurrentUserId({ page: 1, page_size: 50 })
+    params: withCurrentUserId({ page, page_size: pageSize })
   })
   return response.data.data
 }

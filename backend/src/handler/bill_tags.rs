@@ -3,6 +3,7 @@ use axum::{
     extract::{Path, Query, State},
     response::IntoResponse,
 };
+use serde::Deserialize;
 
 use crate::{
     common::{
@@ -13,6 +14,19 @@ use crate::{
     error::app_error::AppError,
     service::bill_tag_service,
 };
+
+#[derive(Debug, Deserialize)]
+pub struct TopTagsQuery {
+    pub user_id: u64,
+}
+
+pub async fn top_tags(
+    State(state): State<AppState>,
+    Query(query): Query<TopTagsQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    let tags = bill_tag_service::top_tags(&state, query.user_id).await?;
+    Ok(ok(tags))
+}
 
 pub async fn list(
     State(state): State<AppState>,

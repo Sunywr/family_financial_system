@@ -3,6 +3,13 @@
     <div class="head">
       <h2>TOP20</h2>
       <div class="actions">
+        <el-switch
+          v-if="isAdmin"
+          v-model="onlyMine"
+          active-text="仅看我购买"
+          inactive-text="查看全部"
+          @change="loadData"
+        />
         <el-select v-model="investmentType" style="width: 160px;" @change="loadData">
           <el-option label="全部" value="" />
           <el-option label="股票" value="stock" />
@@ -13,7 +20,7 @@
       </div>
     </div>
 
-    <el-table :data="filteredList" stripe>
+    <el-table :data="pagedList" stripe>
       <el-table-column prop="investment_id" label="ID" width="90" />
       <el-table-column label="类型" width="120">
         <template #default="{ row }">
@@ -27,6 +34,15 @@
       <el-table-column prop="total_profit_rate" label="收益率" width="120" />
       <el-table-column prop="reason" label="原因" min-width="320" show-overflow-tooltip />
     </el-table>
+    <div class="pagination-wrap">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-sizes="[20, 50, 100]"
+        :total="filteredList.length"
+        layout="total, sizes, prev, pager, next"
+      />
+    </div>
   </section>
 </template>
 
@@ -34,8 +50,15 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { fetchTopInvestments, type InvestmentRecommendation } from '@/api/investments'
+import { getStoredUser, requireCurrentUserId } from '@/api/client'
 
 const recommendations = ref<InvestmentRecommendation[]>([])
+const currentPage = ref(1)
+const pageSize = ref(20)
+const currentUser = getStoredUser()
+const currentUserId = requireCurrentUserId()
+const isAdmin = computed(() => currentUser?.username === 'admin')
+const onlyMine = ref(true)
 const filteredList = computed(() => {
   const k = keywordApplied.value.trim().toLowerCase()
   if (!k) return recommendations.value
@@ -43,16 +66,25 @@ const filteredList = computed(() => {
     `${row.investment_id} ${row.name} ${row.code} ${row.reason}`.toLowerCase().includes(k)
   )
 })
+const pagedList = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return filteredList.value.slice(start, start + pageSize.value)
+})
 const investmentType = ref('')
 const keyword = ref('')
 const keywordApplied = ref('')
 
 async function loadData() {
-  recommendations.value = await fetchTopInvestments(investmentType.value || undefined)
+  recommendations.value = await fetchTopInvestments(
+    investmentType.value || undefined,
+    !isAdmin.value || onlyMine.value ? currentUserId : undefined
+  )
+  currentPage.value = 1
 }
 
 function applyKeyword() {
   keywordApplied.value = keyword.value
+  currentPage.value = 1
 }
 
 onMounted(async () => {
@@ -82,5 +114,10 @@ onMounted(async () => {
   display: flex;
   gap: 10px;
   align-items: center;
+}
+.pagination-wrap {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

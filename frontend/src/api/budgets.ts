@@ -13,10 +13,10 @@ export interface Budget {
   remark?: string | null
 }
 
-export async function fetchBudgets() {
+export async function fetchBudgets(page = 1, pageSize = 50) {
   const month = new Date().toISOString().slice(0, 7) + '-01'
   const response = await client.get<ApiResponse<PageData<Budget>>>('/budgets', {
-    params: withCurrentUserId({ page: 1, page_size: 50, budget_month: month })
+    params: withCurrentUserId({ page, page_size: pageSize, budget_month: month })
   })
   return response.data.data
 }

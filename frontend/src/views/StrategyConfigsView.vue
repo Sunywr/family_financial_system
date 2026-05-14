@@ -28,6 +28,17 @@
         </template>
       </el-table-column>
     </el-table>
+    <div class="pagination-wrap">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-sizes="[20, 50, 100]"
+        :total="strategies.total"
+        layout="total, sizes, prev, pager, next"
+        @current-change="loadStrategies"
+        @size-change="loadStrategies"
+      />
+    </div>
 
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑策略' : '新增策略'" width="520px">
       <el-form label-width="110px">
@@ -93,6 +104,8 @@ import {
 } from '@/api/strategies'
 
 const strategies = ref<{ list: StrategyConfig[]; total: number }>({ list: [], total: 0 })
+const currentPage = ref(1)
+const pageSize = ref(50)
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
 const currentUserId = requireCurrentUserId()
@@ -127,7 +140,7 @@ function resetForm() {
 }
 
 async function loadStrategies() {
-  const data = await fetchStrategies()
+  const data = await fetchStrategies(currentPage.value, pageSize.value)
   strategies.value = { list: data.list, total: data.total }
 }
 
@@ -206,3 +219,11 @@ onMounted(async () => {
   }
 })
 </script>
+
+<style scoped>
+.pagination-wrap {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+</style>

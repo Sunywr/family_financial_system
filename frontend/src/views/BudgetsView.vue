@@ -30,6 +30,17 @@
       </el-table-column>
       <el-table-column prop="remark" label="备注" min-width="220" />
     </el-table>
+    <div class="pagination-wrap">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-sizes="[20, 50, 100]"
+        :total="budgets.total"
+        layout="total, sizes, prev, pager, next"
+        @current-change="loadBudgets"
+        @size-change="loadBudgets"
+      />
+    </div>
   </section>
 </template>
 
@@ -40,9 +51,11 @@ import { requireCurrentUserId } from '@/api/client'
 import { fetchBudgets, generateBudgets, type Budget } from '@/api/budgets'
 
 const budgets = ref<{ list: Budget[]; total: number }>({ list: [], total: 0 })
+const currentPage = ref(1)
+const pageSize = ref(50)
 
 async function loadBudgets() {
-  const data = await fetchBudgets()
+  const data = await fetchBudgets(currentPage.value, pageSize.value)
   budgets.value = { list: data.list, total: data.total }
 }
 
@@ -65,3 +78,11 @@ onMounted(async () => {
   }
 })
 </script>
+
+<style scoped>
+.pagination-wrap {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+</style>

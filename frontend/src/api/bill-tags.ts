@@ -1,4 +1,4 @@
-import { client, type ApiResponse, withCurrentUserId } from './client'
+﻿import { client, type ApiResponse, withCurrentUserId } from './client'
 import type { PageData } from '@/types/api'
 
 export interface BillTag {
@@ -27,5 +27,12 @@ export async function updateBillTag(id: number, payload: { name: string; color?:
 
 export async function deleteBillTag(id: number) {
   const response = await client.delete<ApiResponse<{ deleted: boolean }>>(`/bill-tags/${id}`)
+  return response.data.data
+}
+
+export async function fetchTopBillTags(userId: number): Promise<BillTag[]> {
+  const response = await client.get<ApiResponse<BillTag[]>>('/bill-tags/top', {
+    params: { user_id: userId }
+  })
   return response.data.data
 }

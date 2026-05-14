@@ -4,7 +4,7 @@
       <h2>资产</h2>
       <div class="actions">
         <el-input v-model="keyword" placeholder="全文检索（名称/备注/ID）" style="width: 280px;" />
-        <el-button @click="loadData">查询</el-button>
+        <el-button @click="search">查询</el-button>
       </div>
     </div>
     <el-table :data="assets.list" stripe>
@@ -22,6 +22,17 @@
       </el-table-column>
       <el-table-column prop="remark" label="备注" min-width="220" />
     </el-table>
+    <div class="pagination-wrap">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-sizes="[20, 50, 100]"
+        :total="assets.total"
+        layout="total, sizes, prev, pager, next"
+        @current-change="loadData"
+        @size-change="loadData"
+      />
+    </div>
   </section>
 </template>
 
@@ -31,11 +42,18 @@ import { ElMessage } from 'element-plus'
 import { fetchAssets, type Asset } from '@/api/assets'
 
 const keyword = ref('')
+const currentPage = ref(1)
+const pageSize = ref(20)
 const assets = ref<{ list: Asset[]; total: number }>({ list: [], total: 0 })
 const statusMap: Record<string, string> = { active: '使用中', archived: '已归档' }
 
 async function loadData() {
-  assets.value = await fetchAssets(keyword.value)
+  assets.value = await fetchAssets(keyword.value, currentPage.value, pageSize.value)
+}
+
+function search() {
+  currentPage.value = 1
+  loadData()
 }
 
 onMounted(async () => {
@@ -64,5 +82,10 @@ onMounted(async () => {
 .actions {
   display: flex;
   gap: 10px;
+}
+.pagination-wrap {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

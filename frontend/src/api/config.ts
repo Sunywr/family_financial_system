@@ -36,9 +36,9 @@ export interface CreditCard {
   enabled: boolean
 }
 
-export async function fetchConfigItems(configType?: string) {
+export async function fetchConfigItems(configType?: string, page = 1, pageSize = 100) {
   const response = await client.get<ApiResponse<PageData<ConfigItem>>>('/config/items', {
-    params: { page: 1, page_size: 100, config_type: configType || undefined }
+    params: { page, page_size: pageSize, config_type: configType || undefined }
   })
   return response.data.data
 }
@@ -63,9 +63,9 @@ export async function deleteConfigItem(id: number) {
   return response.data.data
 }
 
-export async function fetchCreditCards() {
+export async function fetchCreditCards(page = 1, pageSize = 20) {
   const response = await client.get<ApiResponse<PageData<CreditCard>>>('/config/credit-cards', {
-    params: withCurrentUserId({ page: 1, page_size: 20 })
+    params: withCurrentUserId({ page, page_size: pageSize })
   })
   return response.data.data
 }

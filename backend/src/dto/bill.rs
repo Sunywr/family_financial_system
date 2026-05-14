@@ -3,12 +3,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::common::pagination::PaginationQuery;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct BillListQuery {
     #[serde(flatten)]
     pub pagination: PaginationQuery,
     pub user_id: Option<u64>,
     pub category_id: Option<u64>,
+    pub credit_card_id: Option<u64>,
     pub bill_type: Option<String>,
     pub payment_method: Option<String>,
     pub start_date: Option<NaiveDate>,

@@ -29,6 +29,25 @@ pub struct LegacyHomepageSummary {
     pub summary_payload: Value,
 }
 
+#[derive(Debug, Clone)]
+pub struct PendingDebtItem {
+    pub id: u64,
+    pub category_name: String,
+    pub display_name: String,
+    pub payment_method: String,
+    pub amount: Decimal,
+    pub repay_deadline: NaiveDate,
+}
+
+#[derive(Debug, Clone)]
+pub struct InvestmentOverview {
+    pub total_investment: Decimal,
+    pub holding_profit: Decimal,
+    pub total_profit: Decimal,
+    pub avg_profit_rate: Decimal,
+    pub avg_annual_rate_wealth: Decimal,
+}
+
 fn month_last_day(year: i32, month: u32) -> u32 {
     let next_month = if month == 12 {
         NaiveDate::from_ymd_opt(year + 1, 1, 1)
@@ -125,6 +144,34 @@ fn debt_due_amount_in_range(
     (row.amount / Decimal::from(total_occurrences)) * Decimal::from(matched_occurrences)
 }
 
+fn scheduled_due_dates_in_range(
+    start_date: NaiveDate,
+    repay_deadline: NaiveDate,
+    period_unit: &str,
+    period_value: u32,
+    range_start: NaiveDate,
+    range_end: NaiveDate,
+) -> Vec<NaiveDate> {
+    let mut matched = Vec::new();
+    let mut cursor = repay_deadline;
+
+    while cursor >= start_date {
+        if cursor >= range_start && cursor <= range_end {
+            matched.push(cursor);
+        }
+        let Some(next_cursor) = shift_date_back(cursor, period_unit, period_value) else {
+            break;
+        };
+        if next_cursor >= cursor {
+            break;
+        }
+        cursor = next_cursor;
+    }
+
+    matched.reverse();
+    matched
+}
+
 pub async fn sum_cash_bill_amounts(
     pool: &sqlx::MySqlPool,
     user_id: u64,
@@ -214,8 +261,8 @@ pub async fn sum_index_cash_delta_since(
     let row = sqlx::query(
         "SELECT CAST(COALESCE(SUM(
             CASE
-              WHEN bill_type IN ('income', 'refund', 'reduce_position', 'dividend') THEN amount
-              WHEN bill_type IN ('expense', 'open_position', 'add_position') THEN -amount
+              WHEN bill_type IN ('income', 'refund') THEN amount
+              WHEN bill_type = 'expense' THEN -amount
               ELSE 0
             END
          ), 0) AS CHAR) AS total
@@ -223,8 +270,15 @@ pub async fn sum_index_cash_delta_since(
          WHERE user_id = ?
            AND account_date >= ?
            AND account_date <= ?
-           AND payment_method = 'cash'
-           AND category_id <> 585
+           AND payment_method NOT IN ('credit_card', 'installment')
+                     AND bill_type NOT IN ('open_position', 'add_position', 'reduce_position', 'dividend')
+                     AND category_id NOT IN (
+                                SELECT id
+                                FROM config_items
+                                WHERE config_type = 'account_category'
+                                    AND name = 'stock'
+                                    AND deleted_at IS NULL
+                     )
            AND deleted_at IS NULL",
     )
     .bind(parse_u64_id(user_id)?)
@@ -456,16 +510,23 @@ pub async fn daily_index_cash_deltas(
          FROM (
             SELECT account_date AS trend_date,
                    CASE
-                     WHEN bill_type IN ('income','refund','reduce_position','dividend') THEN amount
-                     WHEN bill_type IN ('expense','open_position','add_position') THEN -amount
+                     WHEN bill_type IN ('income','refund') THEN amount
+                     WHEN bill_type = 'expense' THEN -amount
                      ELSE 0
                    END AS net_amount
             FROM bills
             WHERE user_id = ?
               AND account_date >= ?
               AND account_date <= ?
-              AND payment_method = 'cash'
-              AND category_id <> 585
+              AND payment_method NOT IN ('credit_card', 'installment')
+                            AND bill_type NOT IN ('open_position', 'add_position', 'reduce_position', 'dividend')
+                            AND category_id NOT IN (
+                                     SELECT id
+                                     FROM config_items
+                                     WHERE config_type = 'account_category'
+                                         AND name = 'stock'
+                                         AND deleted_at IS NULL
+                            )
               AND deleted_at IS NULL
          ) merged
          GROUP BY trend_date
@@ -593,5 +654,203 @@ pub async fn latest_credit_card_repay_deadline(
     .await?;
 
     row.try_get::<Option<NaiveDate>, _>("latest_repay_date")
+        .map_err(AppError::from)
+}
+
+pub async fn list_pending_debts_upcoming(
+    pool: &sqlx::MySqlPool,
+    user_id: u64,
+    start_date: NaiveDate,
+    end_date: NaiveDate,
+    limit: u32,
+) -> Result<Vec<PendingDebtItem>, AppError> {
+    if start_date > end_date {
+        return Ok(Vec::new());
+    }
+
+    let rows = sqlx::query(
+                "SELECT d.id,
+                                d.category_name,
+                                CASE
+                                    WHEN d.payment_method = 'credit_card' THEN COALESCE(cc.name, d.category_name)
+                                    ELSE COALESCE(
+                                        NULLIF(SUBSTRING_INDEX(TRIM(d.remark), ' | ', 1), ''),
+                                        NULLIF(TRIM(d.remark), ''),
+                                        d.category_name
+                                    )
+                                END AS display_name,
+                                d.payment_method,
+                                CAST(d.amount AS CHAR) AS amount,
+                                d.start_date,
+                                d.repay_deadline,
+                                d.period_unit,
+                                d.period_value
+                 FROM debts d
+                 LEFT JOIN bills b
+                     ON b.id = d.source_bill_id
+                    AND b.deleted_at IS NULL
+                 LEFT JOIN credit_cards cc
+                     ON cc.id = b.credit_card_id
+                    AND cc.user_id = d.user_id
+                    AND cc.deleted_at IS NULL
+                 WHERE d.user_id = ?
+           AND status = 'pending'
+                     AND d.repay_deadline IS NOT NULL
+                     AND d.deleted_at IS NULL
+                 ORDER BY d.repay_deadline ASC, d.id ASC",
+    )
+    .bind(parse_u64_id(user_id)?)
+    .fetch_all(pool)
+    .await?;
+
+    let mut items = Vec::new();
+    for row in rows {
+        let id: u64 = row.try_get("id")?;
+        let category_name: String = row.try_get("category_name")?;
+        let display_name: String = row.try_get("display_name")?;
+        let payment_method: String = row.try_get("payment_method")?;
+        let amount = row
+            .try_get::<String, _>("amount")?
+            .parse::<Decimal>()
+            .unwrap_or(Decimal::ZERO);
+        let start: NaiveDate = row.try_get("start_date")?;
+        let Some(deadline) = row.try_get::<Option<NaiveDate>, _>("repay_deadline")? else {
+            continue;
+        };
+
+        if payment_method == "credit_card" {
+            if deadline >= start_date && deadline <= end_date {
+                items.push(PendingDebtItem {
+                    id,
+                    category_name: category_name.clone(),
+                    display_name: display_name.clone(),
+                    payment_method: payment_method.clone(),
+                    amount,
+                    repay_deadline: deadline,
+                });
+            }
+            continue;
+        }
+
+        if deadline < start_date || start > end_date {
+            continue;
+        }
+
+        let period_unit: String = row.try_get("period_unit")?;
+        let period_value: u32 = row.try_get::<u32, _>("period_value")?.max(1);
+        let (total_occurrences, _) =
+            scheduled_occurrences(start, deadline, &period_unit, period_value, start_date, end_date);
+        let per_cycle_amount = amount / Decimal::from(total_occurrences.max(1));
+        for due_date in scheduled_due_dates_in_range(
+            start,
+            deadline,
+            &period_unit,
+            period_value,
+            start_date,
+            end_date,
+        ) {
+            items.push(PendingDebtItem {
+                id,
+                category_name: category_name.clone(),
+                display_name: display_name.clone(),
+                payment_method: payment_method.clone(),
+                amount: per_cycle_amount,
+                repay_deadline: due_date,
+            });
+        }
+    }
+
+    items.sort_by_key(|item| (item.repay_deadline, item.id));
+    if items.len() > limit as usize {
+        items.truncate(limit as usize);
+    }
+    Ok(items)
+}
+
+pub async fn investment_overview(
+    pool: &sqlx::MySqlPool,
+    user_id: u64,
+) -> Result<InvestmentOverview, AppError> {
+    let user_id = parse_u64_id(user_id)?;
+    let base = sqlx::query(
+        "SELECT
+            CAST(COALESCE(SUM(total_cost), 0) AS CHAR) AS total_investment,
+            CAST(COALESCE(SUM(unrealized_profit), 0) AS CHAR) AS holding_profit,
+            CAST(COALESCE(SUM(total_profit), 0) AS CHAR) AS total_profit,
+            CAST(COALESCE(AVG(total_profit_rate), 0) AS CHAR) AS avg_profit_rate
+         FROM investments
+         WHERE user_id = ?
+           AND deleted_at IS NULL
+           AND status = 'holding'
+           AND investment_type IN ('stock', 'wealth')",
+    )
+    .bind(user_id)
+    .fetch_one(pool)
+    .await?;
+
+    let annual_row = sqlx::query(
+        "SELECT CAST(COALESCE(AVG(wi.annualized_return_30d), 0) AS CHAR) AS avg_annual_rate
+         FROM investments i
+         INNER JOIN (
+             SELECT investment_id, MAX(indicator_date) AS indicator_date
+             FROM wealth_indicators
+             WHERE deleted_at IS NULL
+             GROUP BY investment_id
+         ) latest ON latest.investment_id = i.id
+         INNER JOIN wealth_indicators wi
+                 ON wi.investment_id = latest.investment_id
+                AND wi.indicator_date = latest.indicator_date
+                AND wi.deleted_at IS NULL
+         WHERE i.user_id = ?
+           AND i.deleted_at IS NULL
+           AND i.status = 'holding'
+           AND i.investment_type = 'wealth'",
+    )
+    .bind(user_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(InvestmentOverview {
+        total_investment: parse_decimal(base.try_get("total_investment")?),
+        holding_profit: parse_decimal(base.try_get("holding_profit")?),
+        total_profit: parse_decimal(base.try_get("total_profit")?),
+        avg_profit_rate: parse_decimal(base.try_get("avg_profit_rate")?),
+        avg_annual_rate_wealth: parse_decimal(annual_row.try_get("avg_annual_rate")?),
+    })
+}
+
+pub async fn list_recent_salary_income_days(
+    pool: &sqlx::MySqlPool,
+    user_id: u64,
+    start_date: NaiveDate,
+    end_date: NaiveDate,
+) -> Result<Vec<u32>, AppError> {
+    if start_date > end_date {
+        return Ok(Vec::new());
+    }
+
+    let rows = sqlx::query(
+        "SELECT account_date
+         FROM bills
+         WHERE user_id = ?
+           AND bill_type = 'income'
+           AND account_date >= ?
+           AND account_date <= ?
+           AND deleted_at IS NULL
+           AND (category_name LIKE '%工资%' OR LOWER(category_name) LIKE '%salary%')
+         ORDER BY account_date DESC",
+    )
+    .bind(parse_u64_id(user_id)?)
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_all(pool)
+    .await?;
+
+    rows.into_iter()
+        .map(|row| {
+            let date: NaiveDate = row.try_get("account_date")?;
+            Ok(date.day())
+        })
+        .collect::<Result<Vec<_>, sqlx::Error>>()
         .map_err(AppError::from)
 }

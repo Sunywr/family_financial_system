@@ -16,6 +16,17 @@
       <el-table-column prop="review" label="评价" min-width="220" />
       <el-table-column prop="remark" label="备注" min-width="200" />
     </el-table>
+    <div class="pagination-wrap">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-sizes="[20, 50, 100]"
+        :total="brands.total"
+        layout="total, sizes, prev, pager, next"
+        @current-change="loadBrands"
+        @size-change="loadBrands"
+      />
+    </div>
   </section>
 </template>
 
@@ -25,13 +36,27 @@ import { ElMessage } from 'element-plus'
 import { fetchBrands, type Brand } from '@/api/brands'
 
 const brands = ref<{ list: Brand[]; total: number }>({ list: [], total: 0 })
+const currentPage = ref(1)
+const pageSize = ref(20)
+
+async function loadBrands() {
+  const data = await fetchBrands(currentPage.value, pageSize.value)
+  brands.value = { list: data.list, total: data.total }
+}
 
 onMounted(async () => {
   try {
-    const data = await fetchBrands()
-    brands.value = { list: data.list, total: data.total }
+    await loadBrands()
   } catch {
     ElMessage.error('品牌页面初始化失败')
   }
 })
 </script>
+
+<style scoped>
+.pagination-wrap {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+</style>

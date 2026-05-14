@@ -11,9 +11,9 @@ export interface User {
   updated_at: string
 }
 
-export async function fetchUsers() {
+export async function fetchUsers(page = 1, pageSize = 20) {
   const response = await client.get<ApiResponse<PageData<User>>>('/users', {
-    params: { page: 1, page_size: 20 }
+    params: { page, page_size: pageSize }
   })
   return response.data.data
 }

@@ -29,8 +29,19 @@ pub struct DashboardSummary {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct CashTrendMarkPoint {
+    pub debt_id: u64,
+    pub debt_name: String,
+    pub debt_type: String,
+    pub due_date: NaiveDate,
+    pub amount: String,
+    pub balance_after: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct CashTrendPoint {
     pub date: NaiveDate,
     pub cash_balance: String,
     pub anchor_date: Option<NaiveDate>,
+    pub mark_points: Vec<CashTrendMarkPoint>,
 }
