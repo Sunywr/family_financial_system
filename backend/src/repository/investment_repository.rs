@@ -25,6 +25,7 @@ fn map_investment(row: sqlx::mysql::MySqlRow) -> Result<Investment, sqlx::Error>
         unrealized_profit: row.try_get("unrealized_profit")?,
         total_profit: row.try_get("total_profit")?,
         total_profit_rate: row.try_get("total_profit_rate")?,
+        latest_remark: row.try_get("latest_remark")?,
         status: row.try_get("status")?,
         created_at: row.try_get::<NaiveDateTime, _>("created_at")?,
         updated_at: row.try_get::<NaiveDateTime, _>("updated_at")?,
@@ -44,12 +45,25 @@ pub async fn list(
     };
     let total_row = sqlx::query(
         "SELECT COUNT(*) AS total
-         FROM investments
+                 FROM investments i
          WHERE deleted_at IS NULL
-           AND (? IS NULL OR user_id = ?)
-           AND (? IS NULL OR investment_type = ?)
+                     AND (? IS NULL OR i.user_id = ?)
+                     AND (? IS NULL OR i.investment_type = ?)
            AND (? IS NULL OR status = ?)
-           AND (? IS NULL OR name LIKE ? OR code LIKE ? OR organization_name LIKE ? OR CAST(id AS CHAR) LIKE ?)",
+                     AND (
+                         ? IS NULL
+                         OR i.name LIKE ?
+                         OR i.code LIKE ?
+                         OR i.organization_name LIKE ?
+                         OR CAST(i.id AS CHAR) LIKE ?
+                         OR EXISTS (
+                                SELECT 1
+                                FROM bills b
+                                WHERE b.related_investment_id = i.id
+                                    AND b.deleted_at IS NULL
+                                    AND b.product_name LIKE ?
+                         )
+                     )",
     )
     .bind(user_id)
     .bind(user_id)
@@ -57,6 +71,7 @@ pub async fn list(
     .bind(&query.investment_type)
     .bind(&status_filter)
     .bind(&status_filter)
+    .bind(&keyword)
     .bind(&keyword)
     .bind(&keyword)
     .bind(&keyword)
@@ -67,24 +82,72 @@ pub async fn list(
     let total = total_row.try_get::<i64, _>("total")?.max(0) as u64;
 
     let rows = sqlx::query(
-        "SELECT id, user_id, source_bill_id, investment_type, name, code, organization_name, market,
-                CAST(total_shares AS CHAR) AS total_shares,
-                CAST(total_cost AS CHAR) AS total_cost,
-                CAST(average_cost AS CHAR) AS average_cost,
-                CAST(current_price AS CHAR) AS current_price,
-                CAST(market_value AS CHAR) AS market_value,
-                CAST(realized_profit AS CHAR) AS realized_profit,
-                CAST(unrealized_profit AS CHAR) AS unrealized_profit,
-                CAST(total_profit AS CHAR) AS total_profit,
-                CAST(total_profit_rate AS CHAR) AS total_profit_rate,
-                status, created_at, updated_at
-         FROM investments
+                "SELECT i.id, i.user_id, i.source_bill_id, i.investment_type,
+                                COALESCE(
+                                        NULLIF(
+                                                TRIM(
+                                                        CASE
+                                                                WHEN i.name = i.organization_name THEN (
+                                                                        SELECT b.product_name
+                                                                        FROM bills b
+                                                                        WHERE b.related_investment_id = i.id
+                                                                            AND b.deleted_at IS NULL
+                                                                            AND b.product_name IS NOT NULL
+                                                                            AND TRIM(b.product_name) <> ''
+                                                                        ORDER BY b.account_date DESC, b.id DESC
+                                                                        LIMIT 1
+                                                                )
+                                                                ELSE i.name
+                                                        END
+                                                ),
+                                                ''
+                                        ),
+                                        CASE
+                                                WHEN i.investment_type = 'stock' THEN CONCAT('股票 ', i.code)
+                                                ELSE i.organization_name
+                                        END
+                                ) AS name,
+                                i.code, i.organization_name, i.market,
+                                CAST(i.total_shares AS CHAR) AS total_shares,
+                                CAST(i.total_cost AS CHAR) AS total_cost,
+                                CAST(i.average_cost AS CHAR) AS average_cost,
+                                CAST(i.current_price AS CHAR) AS current_price,
+                                CAST(i.market_value AS CHAR) AS market_value,
+                                CAST(i.realized_profit AS CHAR) AS realized_profit,
+                                CAST(i.unrealized_profit AS CHAR) AS unrealized_profit,
+                                CAST(i.total_profit AS CHAR) AS total_profit,
+                                CAST(i.total_profit_rate AS CHAR) AS total_profit_rate,
+                                                                (
+                                                                        SELECT b.remark
+                                                                        FROM bills b
+                                                                        WHERE b.related_investment_id = i.id
+                                                                            AND b.deleted_at IS NULL
+                                                                            AND b.remark IS NOT NULL
+                                                                            AND TRIM(b.remark) <> ''
+                                                                        ORDER BY b.account_date DESC, b.id DESC
+                                                                        LIMIT 1
+                                                                ) AS latest_remark,
+                                i.status, i.created_at, i.updated_at
+                 FROM investments i
          WHERE deleted_at IS NULL
-           AND (? IS NULL OR user_id = ?)
-           AND (? IS NULL OR investment_type = ?)
+                     AND (? IS NULL OR i.user_id = ?)
+                     AND (? IS NULL OR i.investment_type = ?)
            AND (? IS NULL OR status = ?)
-           AND (? IS NULL OR name LIKE ? OR code LIKE ? OR organization_name LIKE ? OR CAST(id AS CHAR) LIKE ?)
-         ORDER BY updated_at DESC, id DESC
+                     AND (
+                         ? IS NULL
+                         OR i.name LIKE ?
+                         OR i.code LIKE ?
+                         OR i.organization_name LIKE ?
+                         OR CAST(i.id AS CHAR) LIKE ?
+                         OR EXISTS (
+                                SELECT 1
+                                FROM bills b
+                                WHERE b.related_investment_id = i.id
+                                    AND b.deleted_at IS NULL
+                                    AND b.product_name LIKE ?
+                         )
+                     )
+                 ORDER BY i.updated_at DESC, i.id DESC
          LIMIT ? OFFSET ?",
     )
     .bind(user_id)
@@ -93,6 +156,7 @@ pub async fn list(
     .bind(&query.investment_type)
     .bind(&status_filter)
     .bind(&status_filter)
+    .bind(&keyword)
     .bind(&keyword)
     .bind(&keyword)
     .bind(&keyword)
@@ -113,19 +177,54 @@ pub async fn list(
 
 pub async fn find_by_id(pool: &sqlx::MySqlPool, id: u64) -> Result<Investment, AppError> {
     let row = sqlx::query(
-        "SELECT id, user_id, source_bill_id, investment_type, name, code, organization_name, market,
-                CAST(total_shares AS CHAR) AS total_shares,
-                CAST(total_cost AS CHAR) AS total_cost,
-                CAST(average_cost AS CHAR) AS average_cost,
-                CAST(current_price AS CHAR) AS current_price,
-                CAST(market_value AS CHAR) AS market_value,
-                CAST(realized_profit AS CHAR) AS realized_profit,
-                CAST(unrealized_profit AS CHAR) AS unrealized_profit,
-                CAST(total_profit AS CHAR) AS total_profit,
-                CAST(total_profit_rate AS CHAR) AS total_profit_rate,
-                status, created_at, updated_at
-         FROM investments
-         WHERE id = ? AND deleted_at IS NULL",
+        "SELECT i.id, i.user_id, i.source_bill_id, i.investment_type,
+                COALESCE(
+                    NULLIF(
+                        TRIM(
+                            CASE
+                                WHEN i.name = i.organization_name THEN (
+                                    SELECT b.product_name
+                                    FROM bills b
+                                    WHERE b.related_investment_id = i.id
+                                      AND b.deleted_at IS NULL
+                                      AND b.product_name IS NOT NULL
+                                      AND TRIM(b.product_name) <> ''
+                                    ORDER BY b.account_date DESC, b.id DESC
+                                    LIMIT 1
+                                )
+                                ELSE i.name
+                            END
+                        ),
+                        ''
+                    ),
+                    CASE
+                        WHEN i.investment_type = 'stock' THEN CONCAT('股票 ', i.code)
+                        ELSE i.organization_name
+                    END
+                ) AS name,
+                i.code, i.organization_name, i.market,
+                CAST(i.total_shares AS CHAR) AS total_shares,
+                CAST(i.total_cost AS CHAR) AS total_cost,
+                CAST(i.average_cost AS CHAR) AS average_cost,
+                CAST(i.current_price AS CHAR) AS current_price,
+                CAST(i.market_value AS CHAR) AS market_value,
+                CAST(i.realized_profit AS CHAR) AS realized_profit,
+                CAST(i.unrealized_profit AS CHAR) AS unrealized_profit,
+                CAST(i.total_profit AS CHAR) AS total_profit,
+                CAST(i.total_profit_rate AS CHAR) AS total_profit_rate,
+                                (
+                                        SELECT b.remark
+                                        FROM bills b
+                                        WHERE b.related_investment_id = i.id
+                                            AND b.deleted_at IS NULL
+                                            AND b.remark IS NOT NULL
+                                            AND TRIM(b.remark) <> ''
+                                        ORDER BY b.account_date DESC, b.id DESC
+                                        LIMIT 1
+                                ) AS latest_remark,
+                i.status, i.created_at, i.updated_at
+         FROM investments i
+         WHERE i.id = ? AND i.deleted_at IS NULL",
     )
     .bind(parse_u64_id(id)?)
     .fetch_optional(pool)
@@ -142,19 +241,54 @@ pub async fn find_by_user_type_code(
     code: &str,
 ) -> Result<Option<Investment>, AppError> {
     let row = sqlx::query(
-        "SELECT id, user_id, source_bill_id, investment_type, name, code, organization_name, market,
-                CAST(total_shares AS CHAR) AS total_shares,
-                CAST(total_cost AS CHAR) AS total_cost,
-                CAST(average_cost AS CHAR) AS average_cost,
-                CAST(current_price AS CHAR) AS current_price,
-                CAST(market_value AS CHAR) AS market_value,
-                CAST(realized_profit AS CHAR) AS realized_profit,
-                CAST(unrealized_profit AS CHAR) AS unrealized_profit,
-                CAST(total_profit AS CHAR) AS total_profit,
-                CAST(total_profit_rate AS CHAR) AS total_profit_rate,
-                status, created_at, updated_at
-         FROM investments
-         WHERE user_id = ? AND investment_type = ? AND code = ? AND deleted_at IS NULL",
+        "SELECT i.id, i.user_id, i.source_bill_id, i.investment_type,
+                COALESCE(
+                    NULLIF(
+                        TRIM(
+                            CASE
+                                WHEN i.name = i.organization_name THEN (
+                                    SELECT b.product_name
+                                    FROM bills b
+                                    WHERE b.related_investment_id = i.id
+                                      AND b.deleted_at IS NULL
+                                      AND b.product_name IS NOT NULL
+                                      AND TRIM(b.product_name) <> ''
+                                    ORDER BY b.account_date DESC, b.id DESC
+                                    LIMIT 1
+                                )
+                                ELSE i.name
+                            END
+                        ),
+                        ''
+                    ),
+                    CASE
+                        WHEN i.investment_type = 'stock' THEN CONCAT('股票 ', i.code)
+                        ELSE i.organization_name
+                    END
+                ) AS name,
+                i.code, i.organization_name, i.market,
+                CAST(i.total_shares AS CHAR) AS total_shares,
+                CAST(i.total_cost AS CHAR) AS total_cost,
+                CAST(i.average_cost AS CHAR) AS average_cost,
+                CAST(i.current_price AS CHAR) AS current_price,
+                CAST(i.market_value AS CHAR) AS market_value,
+                CAST(i.realized_profit AS CHAR) AS realized_profit,
+                CAST(i.unrealized_profit AS CHAR) AS unrealized_profit,
+                CAST(i.total_profit AS CHAR) AS total_profit,
+                CAST(i.total_profit_rate AS CHAR) AS total_profit_rate,
+                                (
+                                        SELECT b.remark
+                                        FROM bills b
+                                        WHERE b.related_investment_id = i.id
+                                            AND b.deleted_at IS NULL
+                                            AND b.remark IS NOT NULL
+                                            AND TRIM(b.remark) <> ''
+                                        ORDER BY b.account_date DESC, b.id DESC
+                                        LIMIT 1
+                                ) AS latest_remark,
+                i.status, i.created_at, i.updated_at
+         FROM investments i
+         WHERE i.user_id = ? AND i.investment_type = ? AND i.code = ? AND i.deleted_at IS NULL",
     )
     .bind(parse_u64_id(user_id)?)
     .bind(investment_type)
@@ -169,20 +303,55 @@ pub async fn list_for_scoring(
     investment_type: &str,
 ) -> Result<Vec<Investment>, AppError> {
     let rows = sqlx::query(
-        "SELECT id, user_id, source_bill_id, investment_type, name, code, organization_name, market,
-                CAST(total_shares AS CHAR) AS total_shares,
-                CAST(total_cost AS CHAR) AS total_cost,
-                CAST(average_cost AS CHAR) AS average_cost,
-                CAST(current_price AS CHAR) AS current_price,
-                CAST(market_value AS CHAR) AS market_value,
-                CAST(realized_profit AS CHAR) AS realized_profit,
-                CAST(unrealized_profit AS CHAR) AS unrealized_profit,
-                CAST(total_profit AS CHAR) AS total_profit,
-                CAST(total_profit_rate AS CHAR) AS total_profit_rate,
-                status, created_at, updated_at
-         FROM investments
-         WHERE investment_type = ? AND deleted_at IS NULL
-         ORDER BY updated_at DESC, id DESC",
+        "SELECT i.id, i.user_id, i.source_bill_id, i.investment_type,
+                COALESCE(
+                    NULLIF(
+                        TRIM(
+                            CASE
+                                WHEN i.name = i.organization_name THEN (
+                                    SELECT b.product_name
+                                    FROM bills b
+                                    WHERE b.related_investment_id = i.id
+                                      AND b.deleted_at IS NULL
+                                      AND b.product_name IS NOT NULL
+                                      AND TRIM(b.product_name) <> ''
+                                    ORDER BY b.account_date DESC, b.id DESC
+                                    LIMIT 1
+                                )
+                                ELSE i.name
+                            END
+                        ),
+                        ''
+                    ),
+                    CASE
+                        WHEN i.investment_type = 'stock' THEN CONCAT('股票 ', i.code)
+                        ELSE i.organization_name
+                    END
+                ) AS name,
+                i.code, i.organization_name, i.market,
+                CAST(i.total_shares AS CHAR) AS total_shares,
+                CAST(i.total_cost AS CHAR) AS total_cost,
+                CAST(i.average_cost AS CHAR) AS average_cost,
+                CAST(i.current_price AS CHAR) AS current_price,
+                CAST(i.market_value AS CHAR) AS market_value,
+                CAST(i.realized_profit AS CHAR) AS realized_profit,
+                CAST(i.unrealized_profit AS CHAR) AS unrealized_profit,
+                CAST(i.total_profit AS CHAR) AS total_profit,
+                CAST(i.total_profit_rate AS CHAR) AS total_profit_rate,
+                                (
+                                        SELECT b.remark
+                                        FROM bills b
+                                        WHERE b.related_investment_id = i.id
+                                            AND b.deleted_at IS NULL
+                                            AND b.remark IS NOT NULL
+                                            AND TRIM(b.remark) <> ''
+                                        ORDER BY b.account_date DESC, b.id DESC
+                                        LIMIT 1
+                                ) AS latest_remark,
+                i.status, i.created_at, i.updated_at
+         FROM investments i
+         WHERE i.investment_type = ? AND i.deleted_at IS NULL
+         ORDER BY i.updated_at DESC, i.id DESC",
     )
     .bind(investment_type)
     .fetch_all(pool)

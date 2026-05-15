@@ -20,6 +20,7 @@ pub struct Investment {
     pub unrealized_profit: String,
     pub total_profit: String,
     pub total_profit_rate: String,
+    pub latest_remark: Option<String>,
     pub status: String,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,

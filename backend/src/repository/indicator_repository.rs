@@ -233,7 +233,35 @@ pub async fn list_top_recommendations(
     let rows = sqlx::query(
         "SELECT *
          FROM (
-            SELECT i.id AS investment_id, i.user_id, i.investment_type, i.name, i.code, i.organization_name,
+            SELECT i.id AS investment_id,
+                   i.user_id,
+                   i.investment_type,
+                   COALESCE(
+                        NULLIF(
+                            TRIM(
+                                CASE
+                                    WHEN i.name = i.organization_name THEN (
+                                        SELECT b.product_name
+                                        FROM bills b
+                                        WHERE b.related_investment_id = i.id
+                                          AND b.deleted_at IS NULL
+                                          AND b.product_name IS NOT NULL
+                                          AND TRIM(b.product_name) <> ''
+                                        ORDER BY b.account_date DESC, b.id DESC
+                                        LIMIT 1
+                                    )
+                                    ELSE i.name
+                                END
+                            ),
+                            ''
+                        ),
+                        CASE
+                            WHEN i.investment_type = 'stock' THEN CONCAT('股票 ', i.code)
+                            ELSE i.organization_name
+                        END
+                   ) AS name,
+                   i.code,
+                   i.organization_name,
                    CAST(i.current_price AS CHAR) AS current_price,
                    CAST(i.market_value AS CHAR) AS market_value,
                    CAST(i.total_profit_rate AS CHAR) AS total_profit_rate,
@@ -255,7 +283,35 @@ pub async fn list_top_recommendations(
 
             UNION ALL
 
-            SELECT i.id AS investment_id, i.user_id, i.investment_type, i.name, i.code, i.organization_name,
+            SELECT i.id AS investment_id,
+                   i.user_id,
+                   i.investment_type,
+                   COALESCE(
+                        NULLIF(
+                            TRIM(
+                                CASE
+                                    WHEN i.name = i.organization_name THEN (
+                                        SELECT b.product_name
+                                        FROM bills b
+                                        WHERE b.related_investment_id = i.id
+                                          AND b.deleted_at IS NULL
+                                          AND b.product_name IS NOT NULL
+                                          AND TRIM(b.product_name) <> ''
+                                        ORDER BY b.account_date DESC, b.id DESC
+                                        LIMIT 1
+                                    )
+                                    ELSE i.name
+                                END
+                            ),
+                            ''
+                        ),
+                        CASE
+                            WHEN i.investment_type = 'stock' THEN CONCAT('股票 ', i.code)
+                            ELSE i.organization_name
+                        END
+                   ) AS name,
+                   i.code,
+                   i.organization_name,
                    CAST(i.current_price AS CHAR) AS current_price,
                    CAST(i.market_value AS CHAR) AS market_value,
                    CAST(i.total_profit_rate AS CHAR) AS total_profit_rate,

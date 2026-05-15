@@ -64,9 +64,19 @@
           {{ formatPosition(row) }}
         </template>
       </el-table-column>
-      <el-table-column v-if="tab === 'stock'" label="备注" min-width="220">
+      <el-table-column v-if="tab === 'wealth'" label="定投" width="100">
         <template #default="{ row }">
-          定投周期：--；坝基金额：--
+          {{ wealthSIPLabel(row) }}
+        </template>
+      </el-table-column>
+      <el-table-column v-if="tab === 'wealth'" label="周期" width="140">
+        <template #default="{ row }">
+          {{ wealthPeriodLabel(row) }}
+        </template>
+      </el-table-column>
+      <el-table-column v-if="tab === 'wealth'" label="备注名称" min-width="240" show-overflow-tooltip>
+        <template #default="{ row }">
+          {{ wealthRemarkName(row) }}
         </template>
       </el-table-column>
     </el-table>
@@ -152,6 +162,134 @@ function displayInvestmentName(item: Investment) {
     return `股票 ${item.code}`
   }
   return item.name || item.organization_name || item.code
+}
+
+function normalizedRemark(item: Investment) {
+  return (item.latest_remark || '').trim()
+}
+
+type WealthRemarkMeta = {
+  sip: boolean
+  period?: string
+  name?: string
+}
+
+function normalizeToken(raw: string) {
+  return raw.replace(/\s+/g, ' ').trim()
+}
+
+function splitRemarkTokens(remark: string) {
+  return remark
+    .replace(/[\r\n]+/g, '|')
+    .split(/[|；;，,。]/)
+    .map(normalizeToken)
+    .filter(Boolean)
+}
+
+function normalizePeriodText(raw: string) {
+  return raw.replace(/\s+/g, '').replace(/每日/g, '每1日')
+}
+
+function extractPeriodFromText(text: string) {
+  const normalized = text.replace(/\s+/g, '')
+  const patterns = [
+    /每\d+[天日周月季年]/,
+    /每[天日周月季年]/,
+    /\d+[天日周月季年](一次)?/,
+    /周[一二三四五六日天]/,
+    /月(初|中|末)/,
+    /双周/
+  ]
+  for (const pattern of patterns) {
+    const matched = normalized.match(pattern)
+    if (matched) {
+      return normalizePeriodText(matched[0])
+    }
+  }
+  return undefined
+}
+
+function parseSipValue(raw: string) {
+  const normalized = raw.replace(/\s+/g, '')
+  if (!normalized) return undefined
+  if (/(是|有|开|开启|已开|true|yes|y|1)/i.test(normalized)) return true
+  if (/(否|无|关|关闭|未开|false|no|n|0)/i.test(normalized)) return false
+  if (normalized.includes('定投')) return true
+  return undefined
+}
+
+function parseWealthRemarkMeta(item: Investment): WealthRemarkMeta {
+  const remark = normalizedRemark(item)
+  const fallbackName = (item.name || item.organization_name || '').trim()
+  const meta: WealthRemarkMeta = {
+    sip: (item.name || '').includes('定投'),
+    name: fallbackName || undefined
+  }
+
+  if (!remark) {
+    return meta
+  }
+
+  const tokens = splitRemarkTokens(remark)
+  const keyValuePattern = /^([^:=：]{1,16})[:=：]\s*(.+)$/
+  for (const token of tokens) {
+    const kv = token.match(keyValuePattern)
+    if (kv) {
+      const key = kv[1].trim().toLowerCase()
+      const value = kv[2].trim()
+      if (!value) continue
+
+      if (/(定投|sip|自动投|自动扣款)/.test(key)) {
+        const sip = parseSipValue(value)
+        if (sip !== undefined) meta.sip = sip
+        if (sip === undefined && value.includes('定投')) meta.sip = true
+        continue
+      }
+
+      if (/(周期|频率|投频|扣款)/.test(key)) {
+        meta.period = extractPeriodFromText(value) || normalizePeriodText(value)
+        continue
+      }
+
+      if (/(名称|备注|标的|产品|理财)/.test(key) && !meta.name) {
+        meta.name = value
+      }
+      continue
+    }
+
+    if (token.includes('定投')) {
+      meta.sip = true
+    }
+
+    if (!meta.period) {
+      const p = extractPeriodFromText(token)
+      if (p) meta.period = p
+    }
+
+    if ((!meta.name || meta.name === fallbackName) && token.length >= 2) {
+      if (!/(周期|每\d|每[天日周月季年]|周[一二三四五六日天]|月[初中末])/.test(token)) {
+        meta.name = token
+      }
+    }
+  }
+
+  if (!meta.period) {
+    meta.period = extractPeriodFromText(remark)
+  }
+
+  return meta
+}
+
+function wealthSIPLabel(item: Investment) {
+  return parseWealthRemarkMeta(item).sip ? '是' : '否'
+}
+
+function wealthPeriodLabel(item: Investment) {
+  return parseWealthRemarkMeta(item).period || '--'
+}
+
+function wealthRemarkName(item: Investment) {
+  return parseWealthRemarkMeta(item).name || '--'
 }
 
 async function loadData() {

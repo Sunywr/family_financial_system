@@ -27,6 +27,9 @@ enum Command {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Load .env into process env first; typed config then reads HFS__* variables.
+    let _ = dotenvy::dotenv();
+
     let cli = Cli::parse();
     let settings = Settings::load()?;
     init_tracing(&settings.app.log_level);

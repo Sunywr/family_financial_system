@@ -847,6 +847,7 @@ dependencies = [
  "clap",
  "config",
  "cron",
+ "dotenvy",
  "rand 0.9.4",
  "rust_decimal",
  "serde",

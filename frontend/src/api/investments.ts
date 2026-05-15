@@ -17,6 +17,7 @@ export interface Investment {
   unrealized_profit: string
   total_profit: string
   total_profit_rate: string
+  latest_remark?: string | null
   status: string
 }
 
