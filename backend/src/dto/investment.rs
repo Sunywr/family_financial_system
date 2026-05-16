@@ -19,3 +19,11 @@ pub struct InvestmentTopQuery {
     pub investment_type: Option<String>,
     pub limit: Option<u32>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateInvestmentRequest {
+    pub current_price: String,
+    pub market_value: String,
+    pub total_shares: String,
+    pub total_cost: String,
+}

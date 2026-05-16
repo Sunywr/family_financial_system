@@ -1,21 +1,25 @@
+import os
+
 import pymysql
 
 
 def main() -> None:
     src = pymysql.connect(
-        host="127.0.0.1",
-        user="pfm",
-        password="sywr0830",
-        database="pfm",
+        host=os.environ.get("PFM_DB_HOST", "127.0.0.1"),
+        port=int(os.environ.get("PFM_DB_PORT", "45106")),
+        user=os.environ.get("PFM_DB_USER", "pfm"),
+        password=os.environ.get("PFM_DB_PASSWORD", "sywr0830"),
+        database=os.environ.get("PFM_DB_NAME", "pfm"),
         charset="utf8mb4",
         cursorclass=pymysql.cursors.DictCursor,
         autocommit=False,
     )
     dst = pymysql.connect(
-        host="127.0.0.1",
-        user="ffs",
-        password="123456",
-        database="ffs",
+        host=os.environ.get("FFS_DB_HOST", "localhost"),
+        port=int(os.environ.get("FFS_DB_PORT", "3306")),
+        user=os.environ.get("FFS_DB_USER", "ffs"),
+        password=os.environ.get("FFS_DB_PASSWORD", "sywr0830"),
+        database=os.environ.get("FFS_DB_NAME", "hfs"),
         charset="utf8mb4",
         cursorclass=pymysql.cursors.DictCursor,
         autocommit=False,

@@ -24,6 +24,12 @@ const BUILTIN_CONFIG_ITEMS: &[(&str, &str, &str, i32)] = &[
     ("asset_category", "default_asset", "通用固定资产", 1),
     ("budget_category", "default_budget", "通用预算分类", 1),
     ("brand_category", "default_brand", "通用品牌分类", 1),
+    (
+        "system_setting",
+        "use_provident_fund_for_mortgage",
+        "公积金冲抵房贷",
+        1,
+    ),
 ];
 
 pub async fn seed_builtin_items(state: &AppState) -> Result<(), AppError> {

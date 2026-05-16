@@ -16,10 +16,17 @@ export interface Bill {
   transfer_group_id?: string | null
   transfer_target_type?: string | null
   transfer_target_user_id?: number | null
+  transfer_target_user_name?: string | null
   credit_card_id?: number | null
+  credit_card_name?: string | null
+  is_installment?: boolean
+  installment_months?: number | null
   investment_action?: string | null
   related_investment_id?: number | null
+  related_investment_name?: string | null
   related_asset_id?: number | null
+  related_asset_name?: string | null
+  related_debt_id?: number | null
   product_name?: string | null
   special_status: string
 }
@@ -51,7 +58,11 @@ export interface CreateBillPayload {
   product_name?: string
   organization_name?: string
   share_amount?: string
+  related_asset_id?: number
+  related_debt_id?: number
 }
+
+export type UpdateBillPayload = Omit<CreateBillPayload, 'user_id'>
 
 export interface BillListFilters {
   category_id?: number
@@ -84,5 +95,15 @@ export async function fetchBillOptions() {
 
 export async function createBill(payload: CreateBillPayload) {
   const response = await client.post<ApiResponse<Bill>>('/bills', payload)
+  return response.data.data
+}
+
+export async function updateBill(id: number, payload: UpdateBillPayload) {
+  const response = await client.put<ApiResponse<Bill>>(`/bills/${id}`, payload)
+  return response.data.data
+}
+
+export async function deleteBill(id: number) {
+  const response = await client.delete<ApiResponse<{ deleted: boolean }>>(`/bills/${id}`)
   return response.data.data
 }

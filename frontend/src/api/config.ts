@@ -36,6 +36,23 @@ export interface CreditCard {
   enabled: boolean
 }
 
+export interface CreateCreditCardRequest {
+  user_id: number
+  name: string
+  billing_day: number
+  repayment_day: number
+  credit_limit: string
+  enabled?: boolean
+}
+
+export interface UpdateCreditCardRequest {
+  name: string
+  billing_day: number
+  repayment_day: number
+  credit_limit: string
+  enabled: boolean
+}
+
 export async function fetchConfigItems(configType?: string, page = 1, pageSize = 100) {
   const response = await client.get<ApiResponse<PageData<ConfigItem>>>('/config/items', {
     params: { page, page_size: pageSize, config_type: configType || undefined }
@@ -67,5 +84,20 @@ export async function fetchCreditCards(page = 1, pageSize = 20) {
   const response = await client.get<ApiResponse<PageData<CreditCard>>>('/config/credit-cards', {
     params: withCurrentUserId({ page, page_size: pageSize })
   })
+  return response.data.data
+}
+
+export async function createCreditCard(payload: CreateCreditCardRequest) {
+  const response = await client.post<ApiResponse<CreditCard>>('/config/credit-cards', payload)
+  return response.data.data
+}
+
+export async function updateCreditCard(id: number, payload: UpdateCreditCardRequest) {
+  const response = await client.put<ApiResponse<CreditCard>>(`/config/credit-cards/${id}`, payload)
+  return response.data.data
+}
+
+export async function deleteCreditCard(id: number) {
+  const response = await client.delete<ApiResponse<{ deleted: boolean }>>(`/config/credit-cards/${id}`)
   return response.data.data
 }

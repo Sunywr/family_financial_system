@@ -217,3 +217,231 @@
   - `frontend/src/views/JobsView.vue`
 - 首页前端：`frontend/src/views/DashboardView.vue`
 - 主布局：`frontend/src/layouts/AppLayout.vue`
+
+## 2026-05-16 Progress Update
+- Homepage/dashboard continuation:
+  - `frontend/src/views/DashboardView.vue` now renders structured dashboard sections instead of generic key-value dumps.
+  - Added separate dashboard tables for `信用卡待还` / `周期债务待还` / `全部待处理`.
+  - Converted `发薪日前准备` / `投资持仓摘要` / `还款趋势摘要` into business-oriented summary cards.
+- Homepage setting toggle:
+  - Added builtin config item `system_setting/use_provident_fund_for_mortgage`.
+  - `backend/src/service/dashboard_service.rs` now skips mortgage-like future debt deductions in cash trend when that setting is enabled.
+  - `frontend/src/views/DashboardView.vue` exposes the toggle as `公积金冲抵房贷` and refreshes trend data after update.
+- Investments and transactions:
+  - Added manual investment editing via `PUT /api/investments/{id}` for `current_price`, `market_value`, `total_shares`, `total_cost`.
+  - Backend recomputes `average_cost`, `unrealized_profit`, `total_profit`, `total_profit_rate`, and `status`.
+  - Investment transactions page now shows investment name/code and source bill id, with keyword search expanded accordingly.
+- Credit cards:
+  - Credit card page now supports create/update/delete.
+  - Backend rejects delete when active bills still reference the card.
+- Bills:
+  - Bills relation column now prefers readable related names (user / card / investment / asset) and falls back to ids only when names are unavailable.
+- Layout:
+  - Restored sidebar menu icons in expanded/collapsed states.
+  - Added icons for current user and logout area in sidebar footer.
+  - Added `@element-plus/icons-vue` as a direct frontend dependency because TypeScript could not resolve it otherwise.
+
+## 2026-05-16 Runtime Verification
+- Backend runtime:
+  - Started `cargo run -- serve` successfully.
+  - Verified `GET http://127.0.0.1:8080/api/health` returns success and reports `database_configured=true`, `database_reachable=true`.
+  - Completed API smoke test chain: `captcha -> login -> me -> users -> dashboard/summary`.
+  - Dashboard summary smoke test returned real data for a non-admin user, including `cash_balance`, `total_assets`, `pending_all`, `salary_prep`, and `stock_idle_cash`.
+- Frontend runtime:
+  - Started `npm run dev -- --host 127.0.0.1 --port 4173` successfully.
+  - Verified `http://127.0.0.1:4173` returns HTTP 200.
+- Build/test verification:
+  - Backend: `cargo fmt --all` and `CARGO_TARGET_DIR=target_test cargo test` pass.
+  - Frontend: `npm run build` passes.
+
+## Current Practical Next Step
+- Reduce dashboard frontend reliance on loose `Record<string, unknown>` typing by introducing typed dashboard summary sub-structures.
+- After that, consider trimming technical/source fields from homepage cards and keeping them only in secondary views or tooltips.
+
+## 2026-05-16 Follow-up Progress
+- Dashboard frontend typing:
+  - `frontend/src/api/dashboard.ts` now has explicit interfaces for:
+    - `DashboardSalaryPrepSummary`
+    - `DashboardPositionSummary`
+    - `DashboardRepayTrendSummary`
+    - `DashboardRepayTrendItem`
+    - `DashboardPendingItem`
+  - `frontend/src/views/DashboardView.vue` was fully rewritten to consume those typed interfaces directly.
+  - The page no longer relies on `Record<string, unknown>` to unpack homepage summary sections.
+- Dashboard page stability:
+  - Rewriting `DashboardView.vue` also removed the accumulated corrupted text/legacy script clutter in that file.
+  - Current homepage behavior remains:
+    - top 4 metric cards
+    - cash trend chart
+    - provident-fund mortgage toggle
+    - three summary cards
+    - three pending-debt tables
+- Backend cleanup:
+  - `backend/src/service/dashboard_service.rs` warning cleanup completed.
+  - The previous 3 unused-assignment warnings for `salary_prep`, `position_summary`, and `repay_trend` were removed.
+
+## 2026-05-16 Follow-up Verification
+- Frontend:
+  - `npm run build` passes after the dashboard rewrite.
+- Backend:
+  - `cargo fmt --all` passes.
+  - `CARGO_TARGET_DIR=target_test cargo test` passes.
+  - Note: plain `cargo test` may fail locally if a running backend process locks `target/debug/hfs-backend.exe`; use `target_test` for stable repeatable verification while the service is running.
+- Runtime:
+  - `GET http://127.0.0.1:8080/api/health` still returns success with `database_reachable=true`.
+  - `http://127.0.0.1:4173` still returns HTTP 200.
+  - Live auth/dashboard smoke path was rechecked against the running service: `captcha -> login -> me -> dashboard/summary`.
+
+## Updated Practical Next Step
+- Remove low-signal technical fields like `source` from the homepage primary cards and keep them only in secondary UI or debugging surfaces.
+- If homepage work continues, consider replacing the backend's generic JSON section assembly with a dedicated typed dashboard DTO.
+
+## 2026-05-16 Homepage Presentation Follow-up
+- Homepage card cleanup completed:
+  - `frontend/src/views/DashboardView.vue` no longer shows technical `source` fields in the main dashboard summary cards.
+  - Repayment summary now uses a business-facing `dueDates` metric instead.
+  - Added small secondary summary text lines for:
+    - salary prep window range
+    - investment annualized return and stock idle cash
+    - repayment summary note
+- File hygiene:
+  - `DashboardView.vue` was rewritten as a clean UTF-8 component again to remove the lingering corrupted homepage text.
+
+## 2026-05-16 Homepage Follow-up Verification
+- `npm run build` passes.
+- `CARGO_TARGET_DIR=target_test cargo test` passes.
+- Live runtime checks still pass:
+  - frontend root `http://127.0.0.1:4173` -> HTTP 200
+  - backend health -> success
+  - `captcha -> login -> dashboard/summary` smoke path succeeds
+- Sampled live summary values after this pass:
+  - `cash_balance=7493.64`
+  - `repay_items=10`
+  - `pending_count=16`
+  - `avg_annual_rate_wealth=0%`
+
+## Revised Practical Next Step
+- Replace backend homepage section JSON assembly with a dedicated typed DTO so frontend and backend stop sharing implicit string-key contracts.
+- After that, consider adding direct drill-down entry points from homepage cards to investments, bills, and debt pages.
+
+## 2026-05-16 Backend DTO Follow-up
+- Backend dashboard summary typing completed:
+  - `backend/src/model/dashboard.rs` now defines explicit structs for homepage summary sections and pending rows.
+  - `DashboardSummary` no longer stores homepage sub-sections as `serde_json::Value`.
+- `backend/src/service/dashboard_service.rs` now builds:
+  - `DashboardSalaryPrepSummary`
+  - `DashboardPositionSummary`
+  - `DashboardRepayTrendSummary`
+  - `DashboardPendingItem`
+  directly instead of assembling JSON blobs.
+- Legacy compatibility retained where still useful:
+  - legacy homepage snapshot continues to override top metric values
+  - legacy obligation arrays can still be parsed into typed pending rows if current lists are empty
+
+## 2026-05-16 Backend DTO Verification
+- `cargo fmt --all` passes.
+- `CARGO_TARGET_DIR=target_test cargo test` passes.
+- `npm run build` passes without frontend API changes beyond the already-added TypeScript interfaces.
+- Live compatibility spot-check:
+  - `/api/health` success
+  - `dashboard/summary` still returns compatible nested paths used by the frontend:
+    - `salary_prep`
+    - `repay_trend.items`
+    - `pending_all[].type`
+
+## Next Practical Step
+- Add drill-down navigation from homepage cards/tables into the corresponding detail pages.
+- Only consider splitting dashboard APIs further if payload growth or caching pressure becomes visible in real usage.
+
+## 2026-05-16 Homepage Drill-down Follow-up
+- Homepage drill-down actions completed:
+  - `frontend/src/views/DashboardView.vue` now links homepage cards and pending tables into:
+    - Bills
+    - Debts
+    - Investments
+- Target-page query hydration completed:
+  - `BillsView.vue` reads route query for:
+    - `keyword`
+    - `start_date`
+    - `end_date`
+    - `category_id`
+    - `payment_method`
+    - `credit_card_id`
+  - `DebtsView.vue` reads route query `keyword`.
+  - `InvestmentsView.vue` reads route query:
+    - `tab`
+    - `keyword`
+    - `show_sold`
+    - `only_mine`
+- Result:
+  - homepage now acts as a real navigation hub instead of a dead-end summary page
+  - users can land directly in filtered detail views instead of manually re-entering context
+
+## 2026-05-16 Drill-down Verification
+- `npm run build` passes.
+- `CARGO_TARGET_DIR=target_test cargo test` passes.
+- Runtime smoke check still succeeds for homepage summary.
+- Sampled homepage summary values after this pass:
+  - `credit_count=10`
+  - `cycle_count=6`
+  - `pending_all=16`
+
+## Revised Next Practical Step
+- Add contextual chips/breadcrumb hints on Bills / Debts / Investments when reached from homepage drill-downs.
+- Improve mobile readability of the homepage repayment list and pending sections now that they are becoming navigational surfaces.
+
+## 2026-05-16 Homepage Context Hint Follow-up
+- Contextual source hints completed:
+  - `BillsView.vue` now shows a homepage-origin info banner when opened from dashboard drill-down.
+  - `DebtsView.vue` now shows the same kind of homepage-origin banner and was rewritten as a clean UTF-8 page.
+  - `InvestmentsView.vue` now shows the same kind of homepage-origin banner.
+- Dashboard route context completed:
+  - `DashboardView.vue` now passes explicit route markers like:
+    - `from=dashboard`
+    - `context=credit-card-pending`
+    - `context=pending-window`
+    - `context=cycle-debt-summary`
+    - `context=cycle-debt-row`
+    - `context=stock-summary`
+    - `context=wealth-summary`
+- Result:
+  - destination pages now explain why filters/tabs are prefilled instead of silently applying them
+  - users have a direct "返回首页" action from those context-driven pages
+
+## 2026-05-16 Context Hint Verification
+- `npm.cmd run build` passes.
+- Runtime backend health check still passes.
+- No backend business logic changed in this pass; prior `target_test` backend regression result remains valid.
+
+## Updated Next Practical Step
+- Improve mobile layout of homepage repayment/pending sections now that those blocks are acting as navigation entrypoints.
+- Optionally add one-click "清除首页筛选上下文" actions on Bills / Debts / Investments.
+
+## 2026-05-16 Investment Dashboard Consolidation
+- Investment dashboard UX:
+  - `frontend/src/views/InvestmentsView.vue` now owns stock transactions and TOP20 through drawer-based actions.
+  - old standalone routes still exist, but the sidebar no longer exposes them.
+  - the investment dashboard remains the canonical entry for holdings, manual edit, transactions, and TOP20 review.
+- Legacy investment names:
+  - added `scripts/sync_investment_display_names.py`.
+  - local data cleanup was executed against FFS + PFM databases.
+  - representative upgrades now visible through API:
+    - `000333 -> ���ļ���`
+    - `600900 -> ��������`
+    - `510500 -> ��֤500ETF`
+    - `159501 -> ��ָETF`
+    - `000860 -> ˳��ũҵ`
+- Smoke-test bug found and fixed:
+  - `/api/investment-transactions` previously returned `500`.
+  - root cause: `backend/src/repository/investment_transaction_repository.rs` had more SQL placeholders than `.bind(...)` calls.
+  - fixed by adding the missing keyword bindings to both count and list queries.
+- Verification completed in this pass:
+  - `npm run build`
+  - `CARGO_TARGET_DIR=target_test cargo test --lib --tests`
+  - backend rebuilt and restarted from `backend/target/debug/hfs-backend.exe`
+  - runtime smoke completed via:
+    - `/api/health`
+    - `captcha -> login -> me`
+    - `/api/investments`
+    - `/api/investments/top`
+    - `/api/investment-transactions`

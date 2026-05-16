@@ -455,3 +455,41 @@ pub async fn update_metrics(
     }
     Ok(())
 }
+
+#[allow(clippy::too_many_arguments)]
+pub async fn update_manual_metrics(
+    pool: &sqlx::MySqlPool,
+    id: u64,
+    total_shares: &str,
+    total_cost: &str,
+    average_cost: &str,
+    current_price: &str,
+    market_value: &str,
+    unrealized_profit: &str,
+    total_profit: &str,
+    total_profit_rate: &str,
+    status: &str,
+) -> Result<(), AppError> {
+    let result = sqlx::query(
+        "UPDATE investments
+         SET total_shares = ?, total_cost = ?, average_cost = ?, current_price = ?, market_value = ?,
+             unrealized_profit = ?, total_profit = ?, total_profit_rate = ?, status = ?
+         WHERE id = ? AND deleted_at IS NULL",
+    )
+    .bind(total_shares)
+    .bind(total_cost)
+    .bind(average_cost)
+    .bind(current_price)
+    .bind(market_value)
+    .bind(unrealized_profit)
+    .bind(total_profit)
+    .bind(total_profit_rate)
+    .bind(status)
+    .bind(parse_u64_id(id)?)
+    .execute(pool)
+    .await?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+    Ok(())
+}

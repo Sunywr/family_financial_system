@@ -1,5 +1,7 @@
 use axum::{
+    Json,
     extract::{Path, Query, State},
+    http::HeaderMap,
     response::IntoResponse,
 };
 
@@ -8,16 +10,18 @@ use crate::{
         response::{ok, paged},
         state::AppState,
     },
-    dto::investment::{InvestmentListQuery, InvestmentTopQuery},
+    dto::investment::{InvestmentListQuery, InvestmentTopQuery, UpdateInvestmentRequest},
     error::app_error::AppError,
-    service::investment_service,
+    service::{auth_service, investment_service},
 };
 
 pub async fn list(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Query(query): Query<InvestmentListQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let (list, total) = investment_service::list(&state, &query).await?;
+    let auth_user_id = auth_service::authenticate_request(&state, &headers).await?;
+    let (list, total) = investment_service::list(&state, &query, auth_user_id).await?;
     Ok(paged(
         list,
         total,
@@ -28,14 +32,34 @@ pub async fn list(
 
 pub async fn detail(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<u64>,
 ) -> Result<impl IntoResponse, AppError> {
-    Ok(ok(investment_service::detail(&state, id).await?))
+    let auth_user_id = auth_service::authenticate_request(&state, &headers).await?;
+    Ok(ok(investment_service::detail(&state, id, auth_user_id).await?))
+}
+
+pub async fn update(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<u64>,
+    Json(payload): Json<UpdateInvestmentRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let auth_user_id = auth_service::authenticate_request(&state, &headers).await?;
+    Ok(ok(investment_service::update(
+        &state,
+        id,
+        &payload,
+        auth_user_id,
+    )
+    .await?))
 }
 
 pub async fn top(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Query(query): Query<InvestmentTopQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    Ok(ok(investment_service::top(&state, &query).await?))
+    let auth_user_id = auth_service::authenticate_request(&state, &headers).await?;
+    Ok(ok(investment_service::top(&state, &query, auth_user_id).await?))
 }

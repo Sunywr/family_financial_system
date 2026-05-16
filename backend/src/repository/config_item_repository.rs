@@ -144,7 +144,9 @@ pub async fn update(
     let result = sqlx::query(
         "UPDATE config_items
          SET display_name = ?, enabled = ?, sort_order = ?
-         WHERE id = ? AND deleted_at IS NULL AND is_builtin = 0",
+         WHERE id = ?
+           AND deleted_at IS NULL
+           AND (is_builtin = 0 OR config_type = 'system_setting')",
     )
     .bind(&payload.display_name)
     .bind(payload.enabled)

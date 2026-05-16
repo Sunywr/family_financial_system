@@ -26,6 +26,13 @@
       </div>
     </div>
 
+    <div v-if="dashboardContextLabel" class="context-banner">
+      <el-alert :title="`当前筛选来自首页：${dashboardContextLabel}`" type="info" :closable="false" show-icon />
+      <div class="context-actions">
+        <el-button text type="primary" @click="goDashboard">返回首页</el-button>
+      </div>
+    </div>
+
     <el-table :data="bills.list" stripe>
       <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="account_date" label="日期" width="110" />
@@ -37,7 +44,7 @@
       </el-table-column>
       <el-table-column label="方式" width="180">
         <template #default="{ row }">
-          <el-tag type="info">{{ formatPaymentMethod(row) }}</el-tag>
+          <el-tag :type="paymentMethodTagType(row.payment_method)">{{ formatPaymentMethod(row) }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="amount" label="金额" width="110" />
@@ -54,6 +61,13 @@
         </template>
       </el-table-column>
       <el-table-column prop="remark" label="备注" min-width="180" show-overflow-tooltip />
+      <el-table-column label="操作" width="220" fixed="right">
+        <template #default="{ row }">
+          <el-button size="small" @click="copyBill(row)">复制</el-button>
+          <el-button size="small" type="primary" plain @click="editBill(row)">修改</el-button>
+          <el-button size="small" type="danger" plain @click="removeBill(row)">删除</el-button>
+        </template>
+      </el-table-column>
     </el-table>
 
     <div class="pagination-wrap">
@@ -69,7 +83,7 @@
     </div>
 
     <!-- 新增账单弹窗 -->
-    <el-dialog v-model="dialogVisible" title="新增账单" width="760px" @closed="resetForm">
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="760px" @closed="resetForm">
       <el-form label-position="top">
         <el-form-item v-if="isAdmin" label="用户">
           <el-select v-model="form.user_id" style="width: 100%;">
@@ -122,7 +136,7 @@
           </div>
         </el-form-item>
 
-        <el-form-item label="支付方式">
+        <el-form-item v-if="form.billGroup === 'investment'" label="支付方式">
           <div class="btn-group">
             <el-button
               v-for="pm in availablePaymentMethods"
@@ -133,6 +147,84 @@
             >{{ paymentMap[pm] || pm }}</el-button>
           </div>
         </el-form-item>
+
+        <template v-else-if="form.billGroup === 'normal'">
+          <el-form-item label="现金/信用卡">
+            <div class="btn-group">
+              <el-button
+                :type="form.payment_base === 'cash' ? 'primary' : 'default'"
+                size="small"
+                @click="setPaymentBase('cash')"
+              >现金</el-button>
+              <el-button
+                :type="form.payment_base === 'credit_card' ? 'primary' : 'default'"
+                size="small"
+                @click="setPaymentBase('credit_card')"
+              >信用卡</el-button>
+            </div>
+          </el-form-item>
+
+          <el-form-item v-if="form.payment_base === 'credit_card'" label="关联信用卡">
+            <el-select v-model="form.credit_card_id" placeholder="请选择信用卡" style="width: 100%;" clearable>
+              <el-option v-for="card in creditCards" :key="card.id" :label="card.name" :value="card.id" />
+            </el-select>
+          </el-form-item>
+
+          <el-form-item label="是否分期">
+            <div class="btn-group">
+              <el-button
+                :type="!form.is_installment ? 'primary' : 'default'"
+                size="small"
+                @click="setInstallment(false)"
+              >否</el-button>
+              <el-button
+                :type="form.is_installment ? 'primary' : 'default'"
+                size="small"
+                @click="setInstallment(true)"
+              >是</el-button>
+            </div>
+          </el-form-item>
+
+          <el-form-item v-if="form.is_installment" label="分期期数">
+            <el-input-number v-model="form.installment_months" :min="1" :max="120" style="width: 180px;" />
+          </el-form-item>
+
+          <el-form-item label="是否预售">
+            <div class="btn-group">
+              <el-button
+                :type="!form.is_presale ? 'primary' : 'default'"
+                size="small"
+                @click="setPresale(false)"
+              >否</el-button>
+              <el-button
+                :type="form.is_presale ? 'primary' : 'default'"
+                size="small"
+                @click="setPresale(true)"
+              >是</el-button>
+            </div>
+          </el-form-item>
+
+          <el-form-item label="是否资产">
+            <div class="btn-group">
+              <el-button
+                :type="!form.is_fixed_asset ? 'primary' : 'default'"
+                size="small"
+                @click="setAsset(false)"
+              >否</el-button>
+              <el-button
+                :type="form.is_fixed_asset ? 'primary' : 'default'"
+                size="small"
+                @click="setAsset(true)"
+              >是</el-button>
+            </div>
+          </el-form-item>
+
+          <el-form-item v-if="form.is_fixed_asset" label="关联资产">
+            <el-select v-model="form.related_asset_id" placeholder="请选择关联资产" style="width: 100%;" clearable>
+              <el-option v-for="asset in assets" :key="asset.id" :label="asset.name" :value="asset.id" />
+            </el-select>
+          </el-form-item>
+        </template>
 
         <el-form-item label="标签（点击快速添加）">
           <div class="btn-group mb-8">
@@ -170,19 +262,14 @@
     <!-- 标签管理弹窗 -->
     <el-dialog v-model="tagDialogVisible" title="标签管理" width="620px">
       <div class="actions mb-12">
-        <el-input v-model="tagKeyword" placeholder="检索标签" style="width: 220px;" @keyup.enter="loadAllTags" />
-        <el-button @click="loadAllTags">查询</el-button>
+        <el-input v-model="tagKeyword" placeholder="检索标签" style="width: 220px;" @keyup.enter="searchTagManager" />
+        <el-button @click="searchTagManager">查询</el-button>
       </div>
-      <el-table :data="allTags" stripe>
+      <el-table :data="tagManagerTags" stripe>
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column label="标签名">
           <template #default="{ row }">
             <el-input v-model="row.name" size="small" />
-          </template>
-        </el-table-column>
-        <el-table-column label="颜色" width="130">
-          <template #default="{ row }">
-            <el-input v-model="row.color" size="small" />
           </template>
         </el-table-column>
         <el-table-column label="操作" width="160">
@@ -192,6 +279,17 @@
           </template>
         </el-table-column>
       </el-table>
+      <div class="pagination-wrap">
+        <el-pagination
+          :current-page="tagManagerPage"
+          :page-size="tagManagerPageSize"
+          :page-sizes="[20, 50, 100]"
+          :total="tagManagerTotal"
+          layout="total, sizes, prev, pager, next"
+          @current-change="onTagManagerPageChange"
+          @size-change="onTagManagerPageSizeChange"
+        />
+      </div>
       <div class="actions mt-12">
         <el-input v-model="newTagName" placeholder="新标签名" style="width: 220px;" />
         <el-button type="primary" @click="addTag">新增标签</el-button>
@@ -202,19 +300,26 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { createBill, fetchBillOptions, fetchBills, type Bill, type BillOptions } from '@/api/bills'
+import { useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { createBill, deleteBill, fetchBillOptions, fetchBills, updateBill, type Bill, type BillOptions } from '@/api/bills'
+import { fetchAssets, type Asset } from '@/api/assets'
 import { fetchConfigItems, fetchCreditCards, type ConfigItem, type CreditCard } from '@/api/config'
 import { fetchUsers, type User } from '@/api/users'
 import {
   createBillTag,
   deleteBillTag,
   fetchBillTags,
+  fetchBillTagsPage,
+  syncBillTagsFromLegacy,
   fetchTopBillTags,
   updateBillTag,
   type BillTag
 } from '@/api/bill-tags'
 import { getStoredUser } from '@/api/client'
+const route = useRoute()
+const router = useRouter()
 
 const billTypeMap: Record<string, string> = {
   income: '收入',
@@ -252,6 +357,10 @@ function billTypeTagType(bt: string): '' | 'success' | 'info' | 'warning' | 'dan
   return 'info'
 }
 
+function paymentMethodTagType(paymentMethod: string): '' | 'success' | 'warning' {
+  return paymentMethod === 'cash' ? 'success' : 'warning'
+}
+
 const creditCardNameMap = ref<Record<number, string>>({})
 
 function creditCardDisplay(id?: number | null) {
@@ -272,18 +381,41 @@ function formatRelation(row: Bill) {
   const transferType = row.transfer_target_type || ''
   if (transferType) {
     const label = relationLabelMap[transferType] || transferType
-    if (transferType === 'system_user' && row.transfer_target_user_id) return `${label}#${row.transfer_target_user_id}`
-    if (transferType === 'investment' && row.related_investment_id) return `${label}#${row.related_investment_id}`
-    if (transferType === 'asset' && row.related_asset_id) return `${label}#${row.related_asset_id}`
+    if (transferType === 'system_user') {
+      return row.transfer_target_user_name
+        ? `${label}·${row.transfer_target_user_name}`
+        : row.transfer_target_user_id
+          ? `${label}#${row.transfer_target_user_id}`
+          : label
+    }
+    if (transferType === 'investment') {
+      return row.related_investment_name
+        ? `${label}·${row.related_investment_name}`
+        : row.related_investment_id
+          ? `${label}#${row.related_investment_id}`
+          : label
+    }
+    if (transferType === 'asset') {
+      return row.related_asset_name
+        ? `${label}·${row.related_asset_name}`
+        : row.related_asset_id
+          ? `${label}#${row.related_asset_id}`
+          : label
+    }
     return label
   }
 
   if (row.payment_method === 'presale') return '预售'
+  if (row.related_investment_name) return `投资·${row.related_investment_name}`
   if (row.related_investment_id) return `投资#${row.related_investment_id}`
+  if (row.related_asset_name) return `资产·${row.related_asset_name}`
   if (row.related_asset_id) return `资产#${row.related_asset_id}`
+  if (row.related_debt_id) return `债务#${row.related_debt_id}`
 
   const status = row.special_status || ''
-  if (status === 'debt_pending' && row.credit_card_id) return `债务·${creditCardDisplay(row.credit_card_id)}`
+  if (status === 'debt_pending' && (row.credit_card_name || row.credit_card_id)) {
+    return `债务·${row.credit_card_name || creditCardDisplay(row.credit_card_id)}`
+  }
   if (!status || status === 'none') return ''
   const key = status.replace('_pending', '')
   return relationLabelMap[key] || key
@@ -302,9 +434,15 @@ const newTagName = ref('')
 const bills = ref<{ list: Bill[]; total: number }>({ list: [], total: 0 })
 const users = ref<User[]>([])
 const creditCards = ref<CreditCard[]>([])
+const assets = ref<Asset[]>([])
 const categories = ref<ConfigItem[]>([])
 const allTags = ref<BillTag[]>([])
 const topTags = ref<BillTag[]>([])
+const tagManagerTags = ref<BillTag[]>([])
+const tagManagerPage = ref(1)
+const tagManagerPageSize = ref(20)
+const tagManagerTotal = ref(0)
+const triedLegacyTagSync = ref(false)
 const options = reactive<BillOptions>({
   payment_methods: [],
   normal_bill_types: [],
@@ -315,6 +453,22 @@ const options = reactive<BillOptions>({
 const currentUser = getStoredUser()
 const isAdmin = computed(() => currentUser?.username === 'admin')
 const currentUserId = computed(() => currentUser?.id ?? 0)
+const dashboardContextMap: Record<string, string> = {
+  'credit-card-pending': '信用卡待还',
+  'pending-window': '待处理账单窗口'
+}
+const dashboardContextLabel = computed(() => {
+  if (route.query.from !== 'dashboard') return ''
+  const key = typeof route.query.context === 'string' ? route.query.context : ''
+  return dashboardContextMap[key] || '首页钻取'
+})
+const editingBillId = ref<number | null>(null)
+const dialogMode = ref<'create' | 'copy' | 'edit'>('create')
+const dialogTitle = computed(() => {
+  if (dialogMode.value === 'edit') return '修改账单'
+  if (dialogMode.value === 'copy') return '复制账单'
+  return '新增账单'
+})
 
 const form = reactive({
   user_id: 0,
@@ -323,7 +477,13 @@ const form = reactive({
   billGroup: '' as '' | 'normal' | 'investment',
   bill_type: '',
   payment_method: 'cash',
+  payment_base: 'cash' as 'cash' | 'credit_card',
+  credit_card_id: undefined as number | undefined,
+  is_installment: false,
+  installment_months: 12,
+  is_presale: false,
   is_fixed_asset: false,
+  related_asset_id: undefined as number | undefined,
   amount: '',
   remark: '',
   tags: [] as string[]
@@ -348,6 +508,54 @@ function selectBillGroup(group: 'normal' | 'investment') {
   form.bill_type = ''
   form.category_id = 0
   form.payment_method = group === 'investment' ? 'stock_account' : 'cash'
+  form.payment_base = 'cash'
+  form.credit_card_id = undefined
+  form.is_installment = false
+  form.installment_months = 12
+  form.is_presale = false
+  form.is_fixed_asset = false
+  form.related_asset_id = undefined
+}
+
+function setPaymentBase(base: 'cash' | 'credit_card') {
+  form.payment_base = base
+  if (base === 'cash') {
+    form.credit_card_id = undefined
+    form.is_installment = false
+    form.installment_months = 12
+  }
+}
+
+function setInstallment(enabled: boolean) {
+  form.is_installment = enabled
+  if (enabled) {
+    form.payment_base = 'credit_card'
+    form.is_presale = false
+    if (!form.installment_months || form.installment_months <= 0) {
+      form.installment_months = 12
+    }
+  }
+}
+
+function setPresale(enabled: boolean) {
+  form.is_presale = enabled
+  if (enabled) {
+    form.is_installment = false
+    form.installment_months = 12
+  }
+}
+
+function setAsset(enabled: boolean) {
+  form.is_fixed_asset = enabled
+  if (!enabled) {
+    form.related_asset_id = undefined
+  }
+}
+
+function resolvePaymentMethod() {
+  if (form.billGroup === 'investment') return form.payment_method
+  if (form.is_presale) return 'presale'
+  return form.payment_base
 }
 
 function selectCategory(id: number) {
@@ -361,13 +569,21 @@ function toggleTag(name: string) {
 }
 
 function resetForm() {
+  editingBillId.value = null
+  dialogMode.value = 'create'
   form.user_id = isAdmin.value ? (users.value[0]?.id ?? 0) : currentUserId.value
   form.account_date = new Date().toISOString().slice(0, 10)
   form.category_id = 0
   form.billGroup = ''
   form.bill_type = ''
   form.payment_method = 'cash'
+  form.payment_base = 'cash'
+  form.credit_card_id = undefined
+  form.is_installment = false
+  form.installment_months = 12
+  form.is_presale = false
   form.is_fixed_asset = false
+  form.related_asset_id = undefined
   form.amount = ''
   form.remark = ''
   form.tags = []
@@ -409,13 +625,74 @@ function resetFilters() {
   search()
 }
 
+function goDashboard() {
+  void router.push({ name: 'dashboard' })
+}
+
+function applyRouteQuery() {
+  const startDate = typeof route.query.start_date === 'string' ? route.query.start_date : ''
+  const endDate = typeof route.query.end_date === 'string' ? route.query.end_date : ''
+  keyword.value = typeof route.query.keyword === 'string' ? route.query.keyword : ''
+  filterCategoryId.value =
+    typeof route.query.category_id === 'string' ? Number(route.query.category_id) || undefined : undefined
+  if (startDate && endDate) {
+    dateRange.value = [startDate, endDate]
+  }
+  const paymentMethod = typeof route.query.payment_method === 'string' ? route.query.payment_method : ''
+  const creditCardId = typeof route.query.credit_card_id === 'string' ? route.query.credit_card_id : ''
+  if (paymentMethod === 'credit_card' && creditCardId) {
+    filterMethodKey.value = `credit_card:${creditCardId}`
+  } else if (paymentMethod) {
+    filterMethodKey.value = paymentMethod
+  }
+}
+
 async function loadAllTags() {
   try {
-    const data = await fetchBillTags(tagKeyword.value)
+    const data = await fetchBillTags('')
     allTags.value = data.list
+
+    if (allTags.value.length === 0 && !triedLegacyTagSync.value) {
+      triedLegacyTagSync.value = true
+      if (currentUserId.value > 0) {
+        const syncResult = await syncBillTagsFromLegacy(currentUserId.value)
+        if (syncResult.imported > 0) {
+          const refreshed = await fetchBillTags('')
+          allTags.value = refreshed.list
+          ElMessage.success(`已从生产库同步 ${syncResult.imported} 个标签`)
+        }
+      }
+    }
   } catch {
     allTags.value = []
   }
+}
+
+async function loadTagManagerPage() {
+  try {
+    const data = await fetchBillTagsPage(tagManagerPage.value, tagManagerPageSize.value, tagKeyword.value)
+    tagManagerTags.value = data.list
+    tagManagerTotal.value = data.total
+  } catch {
+    tagManagerTags.value = []
+    tagManagerTotal.value = 0
+  }
+}
+
+function searchTagManager() {
+  tagManagerPage.value = 1
+  loadTagManagerPage()
+}
+
+function onTagManagerPageChange(page: number) {
+  tagManagerPage.value = page
+  loadTagManagerPage()
+}
+
+function onTagManagerPageSizeChange(size: number) {
+  tagManagerPageSize.value = size
+  tagManagerPage.value = 1
+  loadTagManagerPage()
 }
 
 async function loadTopTags() {
@@ -428,11 +705,12 @@ async function loadTopTags() {
 
 async function loadData() {
   await loadBills()
-  const [optionResult, userResult, categoryResult, creditCardResult] = await Promise.allSettled([
+  const [optionResult, userResult, categoryResult, creditCardResult, assetResult] = await Promise.allSettled([
     fetchBillOptions(),
     fetchUsers(),
     fetchConfigItems('account_category'),
-    fetchCreditCards()
+    fetchCreditCards(),
+    fetchAssets('', 1, 500)
   ])
   if (optionResult.status === 'fulfilled') Object.assign(options, optionResult.value)
   if (userResult.status === 'fulfilled') users.value = userResult.value.list
@@ -441,7 +719,8 @@ async function loadData() {
     creditCards.value = creditCardResult.value.list
     creditCardNameMap.value = Object.fromEntries(creditCards.value.map((item) => [item.id, item.name]))
   }
-  await Promise.allSettled([loadAllTags(), loadTopTags()])
+  if (assetResult.status === 'fulfilled') assets.value = assetResult.value.list
+  await Promise.allSettled([loadAllTags(), loadTopTags(), loadTagManagerPage()])
   resetForm()
 }
 
@@ -450,30 +729,111 @@ function openCreate() {
   dialogVisible.value = true
 }
 
+function fillFormByBill(row: Bill, mode: 'copy' | 'edit') {
+  dialogMode.value = mode
+  editingBillId.value = mode === 'edit' ? row.id : null
+  form.user_id = row.user_id
+  form.account_date = row.account_date
+  form.category_id = row.category_id
+  form.bill_type = row.bill_type
+  form.billGroup = ['open_position', 'add_position', 'reduce_position', 'dividend'].includes(row.bill_type)
+    ? 'investment'
+    : 'normal'
+
+  form.payment_method = row.payment_method
+  form.payment_base = row.payment_method === 'credit_card' || row.payment_method === 'installment'
+    ? 'credit_card'
+    : 'cash'
+  form.credit_card_id = row.credit_card_id ?? undefined
+  form.is_installment = Boolean(row.is_installment)
+  form.installment_months = row.installment_months ?? 12
+  form.is_presale = row.payment_method === 'presale'
+  form.is_fixed_asset = Boolean(row.is_fixed_asset)
+  form.related_asset_id = row.related_asset_id ?? undefined
+  form.amount = row.amount
+  form.remark = row.remark || ''
+  form.tags = [...(row.tags || [])]
+}
+
+function copyBill(row: Bill) {
+  fillFormByBill(row, 'copy')
+  dialogVisible.value = true
+}
+
+function editBill(row: Bill) {
+  fillFormByBill(row, 'edit')
+  dialogVisible.value = true
+}
+
+async function removeBill(row: Bill) {
+  try {
+    await ElMessageBox.confirm(`确定删除账单 #${row.id} 吗？`, '删除确认', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消'
+    })
+    await deleteBill(row.id)
+    ElMessage.success('账单已删除')
+    await loadBills()
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error('删除失败')
+  }
+}
+
 async function submitBill() {
   if (!form.bill_type) { ElMessage.warning('请选择账单类型'); return }
   if (!form.category_id) { ElMessage.warning('请选择分类'); return }
+  const payment_method = resolvePaymentMethod()
+  if (form.billGroup === 'normal' && payment_method === 'credit_card' && !form.credit_card_id) {
+    ElMessage.warning('请选择关联信用卡')
+    return
+  }
+  if (form.billGroup === 'normal' && form.is_installment && (!form.installment_months || form.installment_months <= 0)) {
+    ElMessage.warning('请填写分期期数')
+    return
+  }
+  if (form.billGroup === 'normal' && form.is_fixed_asset && !form.related_asset_id) {
+    ElMessage.warning('请选择关联资产')
+    return
+  }
+
+  const payload = {
+    account_date: form.account_date,
+    category_id: form.category_id,
+    bill_type: form.bill_type,
+    payment_method,
+    is_fixed_asset: form.is_fixed_asset,
+    amount: form.amount,
+    tags: form.tags.length ? form.tags : undefined,
+    remark: form.remark || undefined,
+    credit_card_id: payment_method === 'credit_card' ? form.credit_card_id : undefined,
+    is_installment: form.is_installment || undefined,
+    installment_months: form.is_installment ? form.installment_months : undefined,
+    related_asset_id: form.is_fixed_asset ? form.related_asset_id : undefined
+  }
+
   try {
-    await createBill({
-      user_id: isAdmin.value ? form.user_id : currentUserId.value,
-      account_date: form.account_date,
-      category_id: form.category_id,
-      bill_type: form.bill_type,
-      payment_method: form.payment_method,
-      is_fixed_asset: form.is_fixed_asset,
-      amount: form.amount,
-      tags: form.tags.length ? form.tags : undefined,
-      remark: form.remark || undefined
-    })
-    ElMessage.success('账单已创建')
+    if (dialogMode.value === 'edit' && editingBillId.value) {
+      await updateBill(editingBillId.value, payload)
+      ElMessage.success('账单已更新')
+    } else {
+      await createBill({
+        user_id: isAdmin.value ? form.user_id : currentUserId.value,
+        ...payload
+      })
+      ElMessage.success(dialogMode.value === 'copy' ? '账单已复制' : '账单已创建')
+    }
     dialogVisible.value = false
     await loadBills()
   } catch {
-    ElMessage.error('创建失败，请检查输入')
+    ElMessage.error('保存失败，请检查输入')
   }
 }
 
 function openTagManager() {
+  tagManagerPage.value = 1
+  loadTagManagerPage()
   tagDialogVisible.value = true
 }
 
@@ -483,7 +843,7 @@ async function addTag() {
   try {
     await createBillTag({ user_id: currentUserId.value, name })
     newTagName.value = ''
-    await Promise.allSettled([loadAllTags(), loadTopTags()])
+    await Promise.allSettled([loadAllTags(), loadTopTags(), loadTagManagerPage()])
   } catch {
     ElMessage.error('新增标签失败')
   }
@@ -491,8 +851,9 @@ async function addTag() {
 
 async function saveTag(tag: BillTag) {
   try {
-    await updateBillTag(tag.id, { name: tag.name, color: tag.color || undefined })
+    await updateBillTag(tag.id, { name: tag.name })
     ElMessage.success('标签已保存')
+    await loadTagManagerPage()
   } catch {
     ElMessage.error('保存失败')
   }
@@ -501,7 +862,7 @@ async function saveTag(tag: BillTag) {
 async function removeTag(id: number) {
   try {
     await deleteBillTag(id)
-    await loadAllTags()
+    await Promise.allSettled([loadAllTags(), loadTopTags(), loadTagManagerPage()])
   } catch {
     ElMessage.error('删除失败')
   }
@@ -509,6 +870,7 @@ async function removeTag(id: number) {
 
 onMounted(async () => {
   try {
+    applyRouteQuery()
     await loadData()
   } catch {
     ElMessage.error('账单页面初始化失败')
@@ -534,4 +896,6 @@ onMounted(async () => {
 .mt-12 { margin-top: 12px; }
 .mr-4 { margin-right: 4px; }
 .pagination-wrap { margin-top: 16px; display: flex; justify-content: flex-end; }
+.context-banner { margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px; }
+.context-actions { display: flex; justify-content: flex-end; }
 </style>

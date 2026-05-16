@@ -4,6 +4,8 @@ import type { PageData } from '@/types/api'
 export interface InvestmentTransaction {
   id: number
   investment_id: number
+  investment_name?: string | null
+  investment_code?: string | null
   source_bill_id: number
   transaction_date: string
   action: string

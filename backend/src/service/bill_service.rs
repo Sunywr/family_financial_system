@@ -20,7 +20,13 @@ use crate::{
     },
 };
 
-const PAYMENT_METHODS: &[&str] = &["cash", "credit_card", "installment", "presale", "stock_account"];
+const PAYMENT_METHODS: &[&str] = &[
+    "cash",
+    "credit_card",
+    "installment",
+    "presale",
+    "stock_account",
+];
 const NORMAL_BILL_TYPES: &[&str] = &["income", "expense", "refund"];
 const INVESTMENT_BILL_TYPES: &[&str] = &[
     "open_position",
@@ -30,7 +36,11 @@ const INVESTMENT_BILL_TYPES: &[&str] = &[
 ];
 const TRANSFER_TARGET_TYPES: &[&str] = &["system_user", "other_person"];
 
-pub async fn list(state: &AppState, query: &BillListQuery, auth_user_id: u64) -> Result<(Vec<Bill>, u64), AppError> {
+pub async fn list(
+    state: &AppState,
+    query: &BillListQuery,
+    auth_user_id: u64,
+) -> Result<(Vec<Bill>, u64), AppError> {
     let pool = state.db()?;
     let auth_user = user_repository::find_by_id(pool, auth_user_id).await?;
     let effective_user_id = if auth_user.username == "admin" {
@@ -52,11 +62,33 @@ pub async fn list(state: &AppState, query: &BillListQuery, auth_user_id: u64) ->
     bill_repository::list(pool, &effective_query).await
 }
 
-pub async fn detail(state: &AppState, id: u64) -> Result<Bill, AppError> {
-    bill_repository::find_by_id(state.db()?, id).await
+async fn ensure_bill_access(
+    state: &AppState,
+    auth_user_id: u64,
+    bill: &Bill,
+) -> Result<(), AppError> {
+    let auth_user = user_repository::find_by_id(state.db()?, auth_user_id).await?;
+    if auth_user.username != "admin" && bill.user_id != auth_user_id {
+        return Err(AppError::Unauthorized);
+    }
+    Ok(())
 }
 
-pub async fn create(state: &AppState, payload: &CreateBillRequest, auth_user_id: u64) -> Result<Bill, AppError> {
+pub async fn detail(
+    state: &AppState,
+    id: u64,
+    auth_user_id: u64,
+) -> Result<Bill, AppError> {
+    let bill = bill_repository::find_by_id(state.db()?, id).await?;
+    ensure_bill_access(state, auth_user_id, &bill).await?;
+    Ok(bill)
+}
+
+pub async fn create(
+    state: &AppState,
+    payload: &CreateBillRequest,
+    auth_user_id: u64,
+) -> Result<Bill, AppError> {
     let pool = state.db()?;
     let category = validate_create_payload(state, payload).await?;
     // non-admin users can only create bills for themselves
@@ -99,22 +131,24 @@ pub async fn create(state: &AppState, payload: &CreateBillRequest, auth_user_id:
             &transfer_group_id,
         )
         .await?;
-        return detail(state, id).await;
+        return detail(state, id, auth_user_id).await;
     }
 
     let id = bill_repository::create(pool, payload, &category.display_name, None, &special_status)
         .await?;
     handle_bill_side_effects(state, id, &category, payload).await?;
-    detail(state, id).await
+    detail(state, id, auth_user_id).await
 }
 
 pub async fn update(
     state: &AppState,
     id: u64,
     payload: &UpdateBillRequest,
+    auth_user_id: u64,
 ) -> Result<Bill, AppError> {
     let category = validate_update_payload(state, payload).await?;
     let bill = bill_repository::find_by_id(state.db()?, id).await?;
+    ensure_bill_access(state, auth_user_id, &bill).await?;
     ensure_tags_exist(state, bill.user_id, payload.tags.as_deref()).await?;
     let special_status = derive_special_status(&category, payload);
     bill_repository::update(
@@ -125,10 +159,12 @@ pub async fn update(
         &special_status,
     )
     .await?;
-    detail(state, id).await
+    detail(state, id, auth_user_id).await
 }
 
-pub async fn delete(state: &AppState, id: u64) -> Result<(), AppError> {
+pub async fn delete(state: &AppState, id: u64, auth_user_id: u64) -> Result<(), AppError> {
+    let bill = bill_repository::find_by_id(state.db()?, id).await?;
+    ensure_bill_access(state, auth_user_id, &bill).await?;
     bill_repository::soft_delete(state.db()?, id).await
 }
 
@@ -276,7 +312,8 @@ async fn validate_special_fields(
     if is_investment_category(category) {
         if payment_method != "cash" && payment_method != "stock_account" {
             return Err(AppError::BadRequest(
-                "investment category bills must use cash or stock_account payment_method".to_string(),
+                "investment category bills must use cash or stock_account payment_method"
+                    .to_string(),
             ));
         }
         if !INVESTMENT_BILL_TYPES.contains(&bill_type) {
@@ -419,7 +456,6 @@ async fn ensure_tags_exist(
                 &crate::dto::bill_tag::CreateBillTagRequest {
                     user_id,
                     name: trimmed.to_string(),
-                    color: None,
                 },
             )
             .await?;

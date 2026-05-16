@@ -1,0 +1,1 @@
+if (!(Test-Path .env)) { Write-Error "Missing config message: .env file not found"; exit 1 }

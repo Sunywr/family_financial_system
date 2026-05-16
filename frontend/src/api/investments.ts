@@ -37,6 +37,13 @@ export interface InvestmentRecommendation {
   indicator_date: string
 }
 
+export interface UpdateInvestmentPayload {
+  current_price: string
+  market_value: string
+  total_shares: string
+  total_cost: string
+}
+
 export async function fetchInvestments(params?: {
   user_id?: number
   investment_type?: string
@@ -62,5 +69,10 @@ export async function fetchTopInvestments(investmentType?: string, userId?: numb
   const response = await client.get<ApiResponse<InvestmentRecommendation[]>>('/investments/top', {
     params: { investment_type: investmentType, limit: 20, user_id: userId ?? requireCurrentUserId() }
   })
+  return response.data.data
+}
+
+export async function updateInvestment(id: number, payload: UpdateInvestmentPayload) {
+  const response = await client.put<ApiResponse<Investment>>(`/investments/${id}`, payload)
   return response.data.data
 }

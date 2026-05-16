@@ -8,7 +8,7 @@ import pymysql
 
 def main() -> int:
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "personal_financial_management.settings")
-    legacy_repo = os.environ.get("LEGACY_PFM_REPO", r"d:\Code\personal-financial-management")
+    legacy_repo = os.environ.get("LEGACY_PFM_REPO", r"D:\Codes\Projects\personal_financial_management")
     if legacy_repo not in sys.path:
         sys.path.insert(0, legacy_repo)
 
@@ -21,10 +21,11 @@ def main() -> int:
     from account.view.homepage import index as legacy_homepage_index  # type: ignore
 
     ffs_conn = pymysql.connect(
-        host="127.0.0.1",
-        user="ffs",
-        password="123456",
-        database="ffs",
+        host=os.environ.get("FFS_DB_HOST", "localhost"),
+        port=int(os.environ.get("FFS_DB_PORT", "3306")),
+        user=os.environ.get("FFS_DB_USER", "ffs"),
+        password=os.environ.get("FFS_DB_PASSWORD", "sywr0830"),
+        database=os.environ.get("FFS_DB_NAME", "hfs"),
         charset="utf8mb4",
         cursorclass=pymysql.cursors.DictCursor,
         autocommit=False,

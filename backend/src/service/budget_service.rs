@@ -17,38 +17,63 @@ use crate::{
 pub async fn list(
     state: &AppState,
     query: &BudgetListQuery,
+    auth_user_id: u64,
 ) -> Result<(Vec<Budget>, u64), AppError> {
-    budget_repository::list(state.db()?, query).await
+    let auth_user = user_repository::find_by_id(state.db()?, auth_user_id).await?;
+    let effective_query = BudgetListQuery {
+        pagination: query.pagination.clone(),
+        user_id: if auth_user.username == "admin" {
+            query.user_id
+        } else {
+            Some(auth_user_id)
+        },
+        budget_month: query.budget_month,
+    };
+    budget_repository::list(state.db()?, &effective_query).await
 }
 
-pub async fn detail(state: &AppState, id: u64) -> Result<Budget, AppError> {
-    budget_repository::find_by_id(state.db()?, id).await
+pub async fn detail(state: &AppState, id: u64, auth_user_id: u64) -> Result<Budget, AppError> {
+    let budget = budget_repository::find_by_id(state.db()?, id).await?;
+    ensure_owner_access(state, auth_user_id, budget.user_id).await?;
+    Ok(budget)
 }
 
-pub async fn create(state: &AppState, payload: &CreateBudgetRequest) -> Result<Budget, AppError> {
+pub async fn create(
+    state: &AppState,
+    payload: &CreateBudgetRequest,
+    auth_user_id: u64,
+) -> Result<Budget, AppError> {
     let category = validate_create(state, payload).await?;
+    ensure_owner_access(state, auth_user_id, payload.user_id).await?;
     let id = budget_repository::create(state.db()?, payload, &category.display_name, false).await?;
-    detail(state, id).await
+    detail(state, id, auth_user_id).await
 }
 
 pub async fn update(
     state: &AppState,
     id: u64,
     payload: &UpdateBudgetRequest,
+    auth_user_id: u64,
 ) -> Result<Budget, AppError> {
+    let existing = budget_repository::find_by_id(state.db()?, id).await?;
+    ensure_owner_access(state, auth_user_id, existing.user_id).await?;
     let category = validate_update(state, payload).await?;
     budget_repository::update(state.db()?, id, payload, &category.display_name).await?;
-    detail(state, id).await
+    detail(state, id, auth_user_id).await
 }
 
-pub async fn delete(state: &AppState, id: u64) -> Result<(), AppError> {
+pub async fn delete(state: &AppState, id: u64, auth_user_id: u64) -> Result<(), AppError> {
+    let existing = budget_repository::find_by_id(state.db()?, id).await?;
+    ensure_owner_access(state, auth_user_id, existing.user_id).await?;
     budget_repository::soft_delete(state.db()?, id).await
 }
 
 pub async fn generate(
     state: &AppState,
     payload: &GenerateBudgetRequest,
+    auth_user_id: u64,
 ) -> Result<usize, AppError> {
+    ensure_owner_access(state, auth_user_id, payload.user_id).await?;
     let _ = user_repository::find_by_id(state.db()?, payload.user_id).await?;
     let month_start = normalize_month(payload.budget_month)?;
     let categories = config_item_repository::list(
@@ -191,4 +216,16 @@ fn shift_month(month_start: NaiveDate, delta: i32) -> Result<NaiveDate, AppError
 
 fn format_decimal2(value: Decimal) -> String {
     value.round_dp(2).to_string()
+}
+
+async fn ensure_owner_access(
+    state: &AppState,
+    auth_user_id: u64,
+    owner_user_id: u64,
+) -> Result<(), AppError> {
+    let auth_user = user_repository::find_by_id(state.db()?, auth_user_id).await?;
+    if auth_user.username != "admin" && owner_user_id != auth_user_id {
+        return Err(AppError::Unauthorized);
+    }
+    Ok(())
 }

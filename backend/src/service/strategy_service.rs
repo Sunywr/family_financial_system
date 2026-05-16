@@ -13,34 +13,59 @@ use crate::{
 pub async fn list(
     state: &AppState,
     query: &StrategyListQuery,
+    auth_user_id: u64,
 ) -> Result<(Vec<StrategyConfig>, u64), AppError> {
-    strategy_repository::list(state.db()?, query).await
+    let auth_user = user_repository::find_by_id(state.db()?, auth_user_id).await?;
+    let effective_query = StrategyListQuery {
+        pagination: query.pagination.clone(),
+        user_id: if auth_user.username == "admin" {
+            query.user_id
+        } else {
+            Some(auth_user_id)
+        },
+        investment_type: query.investment_type.clone(),
+        enabled: query.enabled,
+    };
+    strategy_repository::list(state.db()?, &effective_query).await
 }
 
-pub async fn detail(state: &AppState, id: u64) -> Result<StrategyConfig, AppError> {
-    strategy_repository::find_by_id(state.db()?, id).await
+pub async fn detail(
+    state: &AppState,
+    id: u64,
+    auth_user_id: u64,
+) -> Result<StrategyConfig, AppError> {
+    let strategy = strategy_repository::find_by_id(state.db()?, id).await?;
+    ensure_owner_access(state, auth_user_id, strategy.user_id).await?;
+    Ok(strategy)
 }
 
 pub async fn create(
     state: &AppState,
     payload: &CreateStrategyRequest,
+    auth_user_id: u64,
 ) -> Result<StrategyConfig, AppError> {
     validate_create(state, payload).await?;
+    ensure_owner_access(state, auth_user_id, payload.user_id).await?;
     let id = strategy_repository::create(state.db()?, payload).await?;
-    detail(state, id).await
+    detail(state, id, auth_user_id).await
 }
 
 pub async fn update(
     state: &AppState,
     id: u64,
     payload: &UpdateStrategyRequest,
+    auth_user_id: u64,
 ) -> Result<StrategyConfig, AppError> {
+    let existing = strategy_repository::find_by_id(state.db()?, id).await?;
+    ensure_owner_access(state, auth_user_id, existing.user_id).await?;
     validate_update(payload)?;
     strategy_repository::update(state.db()?, id, payload).await?;
-    detail(state, id).await
+    detail(state, id, auth_user_id).await
 }
 
-pub async fn delete(state: &AppState, id: u64) -> Result<(), AppError> {
+pub async fn delete(state: &AppState, id: u64, auth_user_id: u64) -> Result<(), AppError> {
+    let existing = strategy_repository::find_by_id(state.db()?, id).await?;
+    ensure_owner_access(state, auth_user_id, existing.user_id).await?;
     strategy_repository::soft_delete(state.db()?, id).await
 }
 
@@ -125,6 +150,18 @@ fn validate_fields(
         return Err(AppError::BadRequest(
             "take_profit_rate and stop_loss_rate must not be negative".to_string(),
         ));
+    }
+    Ok(())
+}
+
+async fn ensure_owner_access(
+    state: &AppState,
+    auth_user_id: u64,
+    owner_user_id: u64,
+) -> Result<(), AppError> {
+    let auth_user = user_repository::find_by_id(state.db()?, auth_user_id).await?;
+    if auth_user.username != "admin" && owner_user_id != auth_user_id {
+        return Err(AppError::Unauthorized);
     }
     Ok(())
 }

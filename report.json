@@ -1,0 +1,13 @@
+{
+  "status": "failed",
+  "meta": {
+    "ffs_base": "http://127.0.0.1:8080/api",
+    "pfm_base": "http://127.0.0.1:8000",
+    "username": "admin"
+  },
+  "metrics": [],
+  "structure": {},
+  "errors": [
+    "HTTP 400 for GET http://127.0.0.1:8000/api/utils/captcha: \n<!doctype html>\n<html lang=\"en\">\n<head>\n  <title>Bad Request (400)</title>\n</head>\n<body>\n  <h1>Bad Request (400)</h1><p></p>\n</body>\n</html>\n"
+  ]
+}

@@ -40,6 +40,7 @@ pub struct CreateBillRequest {
     pub organization_name: Option<String>,
     pub share_amount: Option<String>,
     pub related_asset_id: Option<u64>,
+    pub related_debt_id: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -64,6 +65,7 @@ pub struct UpdateBillRequest {
     pub organization_name: Option<String>,
     pub share_amount: Option<String>,
     pub related_asset_id: Option<u64>,
+    pub related_debt_id: Option<u64>,
 }
 
 #[derive(Debug, Serialize)]

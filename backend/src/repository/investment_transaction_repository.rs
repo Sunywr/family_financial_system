@@ -10,6 +10,8 @@ fn map_tx(row: sqlx::mysql::MySqlRow) -> Result<InvestmentTransaction, sqlx::Err
     Ok(InvestmentTransaction {
         id: row.try_get("id")?,
         investment_id: row.try_get("investment_id")?,
+        investment_name: row.try_get("investment_name")?,
+        investment_code: row.try_get("investment_code")?,
         source_bill_id: row.try_get("source_bill_id")?,
         transaction_date: row.try_get::<NaiveDate, _>("transaction_date")?,
         action: row.try_get("action")?,
@@ -27,21 +29,37 @@ pub async fn list(
     pool: &sqlx::MySqlPool,
     query: &InvestmentTransactionListQuery,
 ) -> Result<(Vec<InvestmentTransaction>, u64), AppError> {
+    let user_id = query.user_id.map(parse_u64_id).transpose()?;
     let investment_id = query.investment_id.map(parse_u64_id).transpose()?;
     let source_bill_id = query.source_bill_id.map(parse_u64_id).transpose()?;
     let keyword = query.keyword.as_ref().map(|value| format!("%{value}%"));
     let total_row = sqlx::query(
         "SELECT COUNT(*) AS total
-         FROM investment_transactions
-         WHERE deleted_at IS NULL
-           AND (? IS NULL OR investment_id = ?)
-           AND (? IS NULL OR source_bill_id = ?)
-           AND (? IS NULL OR action LIKE ? OR remark LIKE ? OR CAST(id AS CHAR) LIKE ?)",
+         FROM investment_transactions it
+         LEFT JOIN investments i ON i.id = it.investment_id
+         WHERE it.deleted_at IS NULL
+                     AND (? IS NULL OR i.user_id = ?)
+           AND (? IS NULL OR it.investment_id = ?)
+           AND (? IS NULL OR it.source_bill_id = ?)
+           AND (
+             ? IS NULL
+             OR it.action LIKE ?
+             OR it.remark LIKE ?
+             OR i.name LIKE ?
+             OR i.code LIKE ?
+             OR CAST(it.id AS CHAR) LIKE ?
+             OR CAST(it.source_bill_id AS CHAR) LIKE ?
+           )",
     )
+    .bind(user_id)
+    .bind(user_id)
     .bind(investment_id)
     .bind(investment_id)
     .bind(source_bill_id)
     .bind(source_bill_id)
+    .bind(&keyword)
+    .bind(&keyword)
+    .bind(&keyword)
     .bind(&keyword)
     .bind(&keyword)
     .bind(&keyword)
@@ -51,24 +69,40 @@ pub async fn list(
     let total = total_row.try_get::<i64, _>("total")?.max(0) as u64;
 
     let rows = sqlx::query(
-        "SELECT id, investment_id, source_bill_id, transaction_date, action,
-                CAST(shares AS CHAR) AS shares,
-                CAST(amount AS CHAR) AS amount,
-                CAST(unit_price AS CHAR) AS unit_price,
-                CAST(realized_profit AS CHAR) AS realized_profit,
-                remark, created_at, updated_at
-         FROM investment_transactions
-         WHERE deleted_at IS NULL
-           AND (? IS NULL OR investment_id = ?)
-           AND (? IS NULL OR source_bill_id = ?)
-           AND (? IS NULL OR action LIKE ? OR remark LIKE ? OR CAST(id AS CHAR) LIKE ?)
-         ORDER BY transaction_date DESC, id DESC
+        "SELECT it.id, it.investment_id, i.name AS investment_name, i.code AS investment_code,
+                it.source_bill_id, it.transaction_date, it.action,
+                CAST(it.shares AS CHAR) AS shares,
+                CAST(it.amount AS CHAR) AS amount,
+                CAST(it.unit_price AS CHAR) AS unit_price,
+                CAST(it.realized_profit AS CHAR) AS realized_profit,
+                it.remark, it.created_at, it.updated_at
+         FROM investment_transactions it
+         LEFT JOIN investments i ON i.id = it.investment_id
+         WHERE it.deleted_at IS NULL
+                     AND (? IS NULL OR i.user_id = ?)
+           AND (? IS NULL OR it.investment_id = ?)
+           AND (? IS NULL OR it.source_bill_id = ?)
+           AND (
+             ? IS NULL
+             OR it.action LIKE ?
+             OR it.remark LIKE ?
+             OR i.name LIKE ?
+             OR i.code LIKE ?
+             OR CAST(it.id AS CHAR) LIKE ?
+             OR CAST(it.source_bill_id AS CHAR) LIKE ?
+           )
+         ORDER BY it.transaction_date DESC, it.id DESC
          LIMIT ? OFFSET ?",
     )
+    .bind(user_id)
+    .bind(user_id)
     .bind(investment_id)
     .bind(investment_id)
     .bind(source_bill_id)
     .bind(source_bill_id)
+    .bind(&keyword)
+    .bind(&keyword)
+    .bind(&keyword)
     .bind(&keyword)
     .bind(&keyword)
     .bind(&keyword)

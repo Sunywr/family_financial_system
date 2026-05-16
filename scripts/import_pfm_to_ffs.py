@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from collections import defaultdict
 from datetime import date, datetime
 from decimal import Decimal
@@ -12,22 +13,22 @@ from pymysql.cursors import DictCursor
 
 
 SOURCE_DB = {
-    "host": "127.0.0.1",
-    "port": 3306,
-    "user": "pfm",
-    "password": "sywr0830",
-    "database": "pfm",
+    "host": os.environ.get("PFM_DB_HOST", "127.0.0.1"),
+    "port": int(os.environ.get("PFM_DB_PORT", "45106")),
+    "user": os.environ.get("PFM_DB_USER", "pfm"),
+    "password": os.environ.get("PFM_DB_PASSWORD", "sywr0830"),
+    "database": os.environ.get("PFM_DB_NAME", "pfm"),
     "charset": "utf8mb4",
     "cursorclass": DictCursor,
     "autocommit": True,
 }
 
 TARGET_DB = {
-    "host": "127.0.0.1",
-    "port": 3306,
-    "user": "ffs",
-    "password": "123456",
-    "database": "ffs",
+    "host": os.environ.get("FFS_DB_HOST", "localhost"),
+    "port": int(os.environ.get("FFS_DB_PORT", "3306")),
+    "user": os.environ.get("FFS_DB_USER", "ffs"),
+    "password": os.environ.get("FFS_DB_PASSWORD", "sywr0830"),
+    "database": os.environ.get("FFS_DB_NAME", "hfs"),
     "charset": "utf8mb4",
     "cursorclass": DictCursor,
     "autocommit": False,
@@ -145,6 +146,19 @@ def map_debt_status(status: int) -> str:
     return "settled" if status == 1 else "pending"
 
 
+def should_skip_cycle_debt(row: dict[str, Any], debt_category_name: str, has_source_bill: bool) -> bool:
+    # Keep credit-card debts as-is; prune only clearly stale standalone cycle debts.
+    if debt_category_name == "credit_card" or has_source_bill:
+        return False
+    if int(row.get("status") or 0) == 1:
+        return True
+    if Decimal(str(row.get("debt_amount") or 0)) <= Decimal("0"):
+        return True
+    if row.get("repayment_deadline") is None and row.get("repayment_at") is None:
+        return True
+    return False
+
+
 def map_asset_status(status: int) -> str:
     return "active" if status == 0 else "archived"
 
@@ -177,6 +191,19 @@ def execute_many(conn, sql: str, rows: list[tuple[Any, ...]]) -> None:
 def execute(conn, sql: str, params: tuple[Any, ...] | None = None) -> None:
     with conn.cursor() as cur:
         cur.execute(sql, params or ())
+
+
+def table_exists(conn, table_name: str) -> bool:
+    row = fetch_one(
+        conn,
+        """
+        SELECT COUNT(*) AS total
+        FROM information_schema.tables
+        WHERE table_schema = DATABASE() AND table_name = %s
+        """,
+        (table_name,),
+    )
+    return bool(row and int(row["total"]) > 0)
 
 
 def ensure_config_item(
@@ -451,18 +478,25 @@ def import_debts(src, dst, category_maps: dict[str, dict[int, tuple[int, str]]])
     )
     source_bill_map = {int(row["debt_id"]): int(row["bill_id"]) for row in source_bill_rows}
     debt_category_name_by_debt_id: dict[int, str] = {}
+    skipped_cycle_debts = 0
     payload = []
     for row in debt_rows:
+        debt_id = int(row["id"])
         old_category = debt_categories[int(row["debt_type_id"])]
+        normalized_category_name = map_debt_category_name(old_category["name"])
         new_category_id, new_category_name = category_maps["debt"][int(row["debt_type_id"])]
-        debt_category_name_by_debt_id[int(row["id"])] = map_debt_category_name(old_category["name"])
+        debt_category_name_by_debt_id[debt_id] = normalized_category_name
+        source_bill_id = source_bill_map.get(debt_id)
+        if should_skip_cycle_debt(row, normalized_category_name, source_bill_id is not None):
+            skipped_cycle_debts += 1
+            continue
         description = row["description"] or new_category_name
-        payment_method = map_debt_payment_method(row, map_debt_category_name(old_category["name"]), description)
+        payment_method = map_debt_payment_method(row, normalized_category_name, description)
         payload.append(
             (
-                int(row["id"]),
+                debt_id,
                 int(row["owner_id_id"]),
-                source_bill_map.get(int(row["id"])),
+                source_bill_id,
                 row["create_at"].date(),
                 row["repayment_at"].date() if row["repayment_at"] else None,
                 row["repayment_deadline"].date() if row["repayment_deadline"] else None,
@@ -489,6 +523,7 @@ def import_debts(src, dst, category_maps: dict[str, dict[int, tuple[int, str]]])
         """,
         payload,
     )
+    print(f"[import_debts] imported={len(payload)}, skipped_cycle_debts={skipped_cycle_debts}")
     return debt_category_name_by_debt_id
 
 
@@ -1019,6 +1054,9 @@ def import_strategies(src, dst) -> None:
 
 
 def import_legacy_jobs(src, dst) -> None:
+    if not table_exists(src, "pfm_scheduler_job") or not table_exists(src, "pfm_scheduler_run"):
+        return
+
     jobs = fetch_all(src, "SELECT * FROM pfm_scheduler_job ORDER BY id")
     job_rows = []
     for row in jobs:
@@ -1156,6 +1194,8 @@ def import_archive_intel(src, dst) -> None:
         "stock_technical_detail",
     ]
     for table in unsupported_tables:
+        if not table_exists(src, table):
+            continue
         row = fetch_one(src, f"SELECT COUNT(*) AS total FROM {table}")
         intel_rows.append(
             (

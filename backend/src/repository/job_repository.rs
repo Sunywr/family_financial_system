@@ -65,6 +65,11 @@ pub async fn seed_jobs(pool: &sqlx::MySqlPool) -> Result<(), AppError> {
         ("stock_market_sync_daily", "全市场股票同步", "0 0 1 * * * *"),
         ("wealth_sync_daily_slots", "理财产品同步", "0 0 */6 * * * *"),
         ("stock_realtime_sync", "交易时段股票同步", "0 */5 * * * * *"),
+        (
+            "debt_cycle_bill_generate_daily",
+            "周期债务自动生成账单",
+            "0 15 0 * * * *",
+        ),
         ("dashboard_snapshot_daily", "首页快照", "0 10 23 * * * *"),
     ];
 

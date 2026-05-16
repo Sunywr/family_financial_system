@@ -10,8 +10,23 @@
 
     <el-table :data="strategies.list" stripe>
       <el-table-column prop="strategy_name" label="策略名" min-width="160" />
-      <el-table-column prop="investment_type" label="类型" width="100" />
-      <el-table-column prop="target_code" label="目标代码" width="130" />
+      <el-table-column label="类型" width="100">
+        <template #default="{ row }">
+          <el-tag>{{ investmentTypeLabelMap[row.investment_type] || row.investment_type }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="目标代码" width="140">
+        <template #default="{ row }">
+          <span>{{ row.target_code || '通用策略' }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="风险等级" width="110">
+        <template #default="{ row }">
+          <el-tag :type="riskLevelTagType(row.risk_level)">
+            {{ riskLevelLabelMap[row.risk_level] || row.risk_level }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column prop="preferred_min_score" label="最低分" width="90" />
       <el-table-column prop="cooldown_days" label="冷静期" width="90" />
       <el-table-column prop="take_profit_rate" label="止盈阈值" width="110" />
@@ -103,6 +118,17 @@ import {
   type StrategyConfig
 } from '@/api/strategies'
 
+const investmentTypeLabelMap: Record<string, string> = {
+  stock: '股票',
+  wealth: '理财'
+}
+
+const riskLevelLabelMap: Record<string, string> = {
+  low: '低风险',
+  balanced: '平衡型',
+  high: '高风险'
+}
+
 const strategies = ref<{ list: StrategyConfig[]; total: number }>({ list: [], total: 0 })
 const currentPage = ref(1)
 const pageSize = ref(50)
@@ -137,6 +163,13 @@ function resetForm() {
     stop_loss_rate: '0.08',
     notes: ''
   }
+}
+
+function riskLevelTagType(level: string): '' | 'success' | 'warning' | 'danger' {
+  if (level === 'low') return 'success'
+  if (level === 'balanced') return 'warning'
+  if (level === 'high') return 'danger'
+  return ''
 }
 
 async function loadStrategies() {

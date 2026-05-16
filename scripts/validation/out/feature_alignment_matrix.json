@@ -1,0 +1,377 @@
+{
+  "ffs_routes": [
+    "/api/assets",
+    "/api/assets/{id}",
+    "/api/auth/captcha",
+    "/api/auth/login",
+    "/api/auth/logout",
+    "/api/auth/me",
+    "/api/balance-calibrations",
+    "/api/balance-calibrations/{id}",
+    "/api/bill-tags",
+    "/api/bill-tags/top",
+    "/api/bill-tags/{id}",
+    "/api/bills",
+    "/api/bills/options",
+    "/api/bills/{id}",
+    "/api/brands",
+    "/api/brands/{id}",
+    "/api/budgets",
+    "/api/budgets/generate",
+    "/api/budgets/{id}",
+    "/api/config/credit-cards",
+    "/api/config/credit-cards/{id}",
+    "/api/config/items",
+    "/api/config/items/{id}",
+    "/api/config/types",
+    "/api/dashboard/cash-trend",
+    "/api/dashboard/summary",
+    "/api/debts",
+    "/api/debts/{id}",
+    "/api/health",
+    "/api/intel",
+    "/api/intel/{id}",
+    "/api/investment-transactions",
+    "/api/investments",
+    "/api/investments/top",
+    "/api/investments/{id}",
+    "/api/jobs",
+    "/api/jobs/runs",
+    "/api/jobs/{id}",
+    "/api/jobs/{id}/trigger",
+    "/api/migration-audit/summary",
+    "/api/presales",
+    "/api/presales/{id}",
+    "/api/strategies",
+    "/api/strategies/{id}",
+    "/api/users",
+    "/api/users/options",
+    "/api/users/{id}"
+  ],
+  "pfm_routes": [
+    "/api/account/account_category",
+    "/api/account/account_creditcard",
+    "/api/account/account_description",
+    "/api/account/account_label_recommand",
+    "/api/account/account_label_statistics",
+    "/api/account/account_monthes",
+    "/api/account/account_snapshots",
+    "/api/account/accounts",
+    "/api/account/api/cockpit-column-settings",
+    "/api/account/api/indicator-config",
+    "/api/account/apply_stock_policy_recommendation",
+    "/api/account/asset_category",
+    "/api/account/asset_description",
+    "/api/account/assets",
+    "/api/account/auto_configure_top_scan",
+    "/api/account/auto_invest_plans",
+    "/api/account/balance_fix",
+    "/api/account/brands",
+    "/api/account/budget_category",
+    "/api/account/budget_description",
+    "/api/account/budgets",
+    "/api/account/category_sum",
+    "/api/account/debt_category",
+    "/api/account/debt_description",
+    "/api/account/debts",
+    "/api/account/financial_report",
+    "/api/account/index",
+    "/api/account/invest_category",
+    "/api/account/invest_description",
+    "/api/account/invest_policy",
+    "/api/account/invest_policy_result",
+    "/api/account/invest_risk_templates",
+    "/api/account/invests",
+    "/api/account/kdj_decision_config",
+    "/api/account/kdj_decision_config_import",
+    "/api/account/kdj_decision_config_template",
+    "/api/account/kdj_decision_dashboard",
+    "/api/account/label_wordcloud",
+    "/api/account/labels",
+    "/api/account/market_drive_dashboard",
+    "/api/account/market_drive_evaluation",
+    "/api/account/presale_category",
+    "/api/account/presale_description",
+    "/api/account/presales",
+    "/api/account/stock_accounts",
+    "/api/account/sub_category_sum",
+    "/api/account/sum_per_day",
+    "/api/account/summary",
+    "/api/account/sync_status",
+    "/api/account/sync_tech_cockpit",
+    "/api/account/top_stock_pool",
+    "/api/account/top_stock_pool/rebuild",
+    "/api/account/top_stock_pool/rebuild_async",
+    "/api/account/upload_brand",
+    "/api/account/{id}/debt_repay",
+    "/api/users/info",
+    "/api/utils/captcha",
+    "/api/utils/login"
+  ],
+  "matrix": [
+    {
+      "name": "Auth: captcha",
+      "category": "auth",
+      "status": "matched",
+      "notes": "Login captcha flow",
+      "ffs_patterns": [
+        "/api/auth/captcha"
+      ],
+      "pfm_patterns": [
+        "/api/utils/captcha"
+      ]
+    },
+    {
+      "name": "Auth: login",
+      "category": "auth",
+      "status": "matched",
+      "notes": "Credential authentication",
+      "ffs_patterns": [
+        "/api/auth/login"
+      ],
+      "pfm_patterns": [
+        "/api/utils/login"
+      ]
+    },
+    {
+      "name": "Auth: current user",
+      "category": "auth",
+      "status": "matched",
+      "notes": "Session identity endpoint",
+      "ffs_patterns": [
+        "/api/auth/me"
+      ],
+      "pfm_patterns": [
+        "/api/users/info"
+      ]
+    },
+    {
+      "name": "Dashboard: summary/index",
+      "category": "dashboard",
+      "status": "matched",
+      "notes": "Homepage aggregate",
+      "ffs_patterns": [
+        "/api/dashboard/summary"
+      ],
+      "pfm_patterns": [
+        "/api/account/index",
+        "/api/account/summary"
+      ]
+    },
+    {
+      "name": "Dashboard: cash trend",
+      "category": "dashboard",
+      "status": "matched",
+      "notes": "Trend and obligation series",
+      "ffs_patterns": [
+        "/api/dashboard/cash-trend"
+      ],
+      "pfm_patterns": [
+        "/api/account/index",
+        "/api/account/sum_per_day"
+      ]
+    },
+    {
+      "name": "Bills CRUD",
+      "category": "core",
+      "status": "matched",
+      "notes": "Account records",
+      "ffs_patterns": [
+        "/api/bills",
+        "/api/bills/{id}"
+      ],
+      "pfm_patterns": [
+        "/api/account/accounts"
+      ]
+    },
+    {
+      "name": "Debts CRUD",
+      "category": "core",
+      "status": "matched",
+      "notes": "Debt lifecycle",
+      "ffs_patterns": [
+        "/api/debts",
+        "/api/debts/{id}"
+      ],
+      "pfm_patterns": [
+        "/api/account/debts",
+        "/api/account/{id}/debt_repay"
+      ]
+    },
+    {
+      "name": "Presales CRUD",
+      "category": "core",
+      "status": "matched",
+      "notes": "Presale records",
+      "ffs_patterns": [
+        "/api/presales",
+        "/api/presales/{id}"
+      ],
+      "pfm_patterns": [
+        "/api/account/presales"
+      ]
+    },
+    {
+      "name": "Assets CRUD",
+      "category": "core",
+      "status": "matched",
+      "notes": "Assets records",
+      "ffs_patterns": [
+        "/api/assets",
+        "/api/assets/{id}"
+      ],
+      "pfm_patterns": [
+        "/api/account/assets"
+      ]
+    },
+    {
+      "name": "Budgets CRUD",
+      "category": "core",
+      "status": "matched",
+      "notes": "Budget rules and generation",
+      "ffs_patterns": [
+        "/api/budgets",
+        "/api/budgets/{id}",
+        "/api/budgets/generate"
+      ],
+      "pfm_patterns": [
+        "/api/account/budgets"
+      ]
+    },
+    {
+      "name": "Investments CRUD/List",
+      "category": "investments",
+      "status": "matched",
+      "notes": "Investment positions",
+      "ffs_patterns": [
+        "/api/investments",
+        "/api/investments/{id}"
+      ],
+      "pfm_patterns": [
+        "/api/account/invests"
+      ]
+    },
+    {
+      "name": "Investments: top ranking",
+      "category": "investments",
+      "status": "matched",
+      "notes": "Top candidate list",
+      "ffs_patterns": [
+        "/api/investments/top"
+      ],
+      "pfm_patterns": [
+        "/api/account/top_stock_pool"
+      ]
+    },
+    {
+      "name": "Investment transactions",
+      "category": "investments",
+      "status": "matched",
+      "notes": "FFS has dedicated transaction endpoint",
+      "ffs_patterns": [
+        "/api/investment-transactions"
+      ],
+      "pfm_patterns": [
+        "/api/account/invests"
+      ]
+    },
+    {
+      "name": "Credit cards config",
+      "category": "config",
+      "status": "matched",
+      "notes": "Credit card settings",
+      "ffs_patterns": [
+        "/api/config/credit-cards",
+        "/api/config/credit-cards/{id}"
+      ],
+      "pfm_patterns": [
+        "/api/account/account_creditcard"
+      ]
+    },
+    {
+      "name": "Balance calibration",
+      "category": "config",
+      "status": "matched",
+      "notes": "Balance anchor points",
+      "ffs_patterns": [
+        "/api/balance-calibrations",
+        "/api/balance-calibrations/{id}"
+      ],
+      "pfm_patterns": [
+        "/api/account/balance_fix"
+      ]
+    },
+    {
+      "name": "Brands CRUD",
+      "category": "config",
+      "status": "matched",
+      "notes": "Brand catalog",
+      "ffs_patterns": [
+        "/api/brands",
+        "/api/brands/{id}"
+      ],
+      "pfm_patterns": [
+        "/api/account/brands"
+      ]
+    },
+    {
+      "name": "Labels/Tags",
+      "category": "config",
+      "status": "matched",
+      "notes": "Bill tags vs generic labels",
+      "ffs_patterns": [
+        "/api/bill-tags",
+        "/api/bill-tags/{id}",
+        "/api/bill-tags/top"
+      ],
+      "pfm_patterns": [
+        "/api/account/labels",
+        "/api/account/label_wordcloud"
+      ]
+    },
+    {
+      "name": "Migration audit",
+      "category": "system",
+      "status": "ffs_only",
+      "notes": "FFS-only migration utility",
+      "ffs_patterns": [
+        "/api/migration-audit/summary"
+      ],
+      "pfm_patterns": []
+    },
+    {
+      "name": "Jobs and runs",
+      "category": "system",
+      "status": "ffs_only",
+      "notes": "FFS scheduler management endpoint set",
+      "ffs_patterns": [
+        "/api/jobs",
+        "/api/jobs/{id}",
+        "/api/jobs/runs",
+        "/api/jobs/{id}/trigger"
+      ],
+      "pfm_patterns": []
+    },
+    {
+      "name": "Users CRUD",
+      "category": "system",
+      "status": "matched",
+      "notes": "PFM exposes mostly current-user info",
+      "ffs_patterns": [
+        "/api/users",
+        "/api/users/{id}",
+        "/api/users/options"
+      ],
+      "pfm_patterns": [
+        "/api/users/info"
+      ]
+    }
+  ],
+  "summary": {
+    "matched": 18,
+    "partial": 0,
+    "missing_in_ffs": 0,
+    "ffs_only": 2,
+    "missing_both": 0
+  }
+}

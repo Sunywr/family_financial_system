@@ -6,7 +6,6 @@ pub struct BillTag {
     pub id: u64,
     pub user_id: u64,
     pub name: String,
-    pub color: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }

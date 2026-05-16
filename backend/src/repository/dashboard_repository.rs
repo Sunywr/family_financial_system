@@ -738,8 +738,14 @@ pub async fn list_pending_debts_upcoming(
 
         let period_unit: String = row.try_get("period_unit")?;
         let period_value: u32 = row.try_get::<u32, _>("period_value")?.max(1);
-        let (total_occurrences, _) =
-            scheduled_occurrences(start, deadline, &period_unit, period_value, start_date, end_date);
+        let (total_occurrences, _) = scheduled_occurrences(
+            start,
+            deadline,
+            &period_unit,
+            period_value,
+            start_date,
+            end_date,
+        );
         let per_cycle_amount = amount / Decimal::from(total_occurrences.max(1));
         for due_date in scheduled_due_dates_in_range(
             start,
@@ -765,6 +771,75 @@ pub async fn list_pending_debts_upcoming(
         items.truncate(limit as usize);
     }
     Ok(items)
+}
+
+pub async fn list_cycle_debt_bills_upcoming(
+    pool: &sqlx::MySqlPool,
+    user_id: u64,
+    start_date: NaiveDate,
+    end_date: NaiveDate,
+    limit: u32,
+) -> Result<Vec<PendingDebtItem>, AppError> {
+    if start_date > end_date {
+        return Ok(Vec::new());
+    }
+
+    let rows = sqlx::query(
+        "SELECT b.related_debt_id,
+                b.id AS bill_id,
+                COALESCE(d.category_name, b.category_name) AS category_name,
+                COALESCE(
+                    NULLIF(SUBSTRING_INDEX(TRIM(d.remark), ' | ', 1), ''),
+                    NULLIF(TRIM(d.remark), ''),
+                    d.category_name,
+                    b.category_name
+                ) AS display_name,
+                b.payment_method,
+                CAST(b.amount AS CHAR) AS amount,
+                b.account_date AS due_date
+         FROM bills b
+         LEFT JOIN debts d
+                ON d.id = b.related_debt_id
+               AND d.deleted_at IS NULL
+         WHERE b.user_id = ?
+           AND b.related_debt_id IS NOT NULL
+           AND b.special_status = 'debt_cycle_auto'
+           AND b.bill_type = 'expense'
+           AND b.account_date >= ?
+           AND b.account_date <= ?
+           AND b.deleted_at IS NULL
+         ORDER BY b.account_date ASC, b.id ASC
+         LIMIT ?",
+    )
+    .bind(parse_u64_id(user_id)?)
+    .bind(start_date)
+    .bind(end_date)
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
+
+    rows.into_iter()
+        .map(|row| {
+            let amount = row
+                .try_get::<String, _>("amount")?
+                .parse::<Decimal>()
+                .unwrap_or(Decimal::ZERO);
+            let id = row
+                .try_get::<Option<u64>, _>("related_debt_id")?
+                .or_else(|| row.try_get::<Option<u64>, _>("bill_id").ok().flatten())
+                .unwrap_or(0);
+
+            Ok(PendingDebtItem {
+                id,
+                category_name: row.try_get("category_name")?,
+                display_name: row.try_get("display_name")?,
+                payment_method: row.try_get("payment_method")?,
+                amount,
+                repay_deadline: row.try_get("due_date")?,
+            })
+        })
+        .collect::<Result<Vec<_>, sqlx::Error>>()
+        .map_err(AppError::from)
 }
 
 pub async fn investment_overview(

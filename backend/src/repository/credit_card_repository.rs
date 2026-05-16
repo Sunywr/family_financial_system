@@ -148,3 +148,17 @@ pub async fn soft_delete(pool: &sqlx::MySqlPool, id: u64) -> Result<(), AppError
 
     Ok(())
 }
+
+pub async fn count_active_bills(pool: &sqlx::MySqlPool, id: u64) -> Result<u64, AppError> {
+    let id = parse_u64_id(id)?;
+    let row = sqlx::query(
+        "SELECT COUNT(*) AS total
+         FROM bills
+         WHERE credit_card_id = ? AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(row.try_get::<i64, _>("total")?.max(0) as u64)
+}

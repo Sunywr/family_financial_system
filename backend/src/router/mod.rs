@@ -64,9 +64,10 @@ pub fn create_router(state: AppState) -> Router {
             "/api/bill-tags",
             get(handler::bill_tags::list).post(handler::bill_tags::create),
         )
+        .route("/api/bill-tags/top", get(handler::bill_tags::top_tags))
         .route(
-            "/api/bill-tags/top",
-            get(handler::bill_tags::top_tags),
+            "/api/bill-tags/sync-legacy",
+            post(handler::bill_tags::sync_legacy),
         )
         .route(
             "/api/bill-tags/{id}",
@@ -111,7 +112,10 @@ pub fn create_router(state: AppState) -> Router {
         )
         .route("/api/investments", get(handler::investments::list))
         .route("/api/investments/top", get(handler::investments::top))
-        .route("/api/investments/{id}", get(handler::investments::detail))
+        .route(
+            "/api/investments/{id}",
+            get(handler::investments::detail).put(handler::investments::update),
+        )
         .route(
             "/api/investment-transactions",
             get(handler::investment_transactions::list),

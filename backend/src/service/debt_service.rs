@@ -10,32 +10,71 @@ use crate::{
     repository::{config_item_repository, debt_repository, user_repository},
 };
 
-pub async fn list(state: &AppState, query: &DebtListQuery) -> Result<(Vec<Debt>, u64), AppError> {
-    debt_repository::list(state.db()?, query).await
+pub async fn list(
+    state: &AppState,
+    query: &DebtListQuery,
+    auth_user_id: u64,
+) -> Result<(Vec<Debt>, u64), AppError> {
+    let auth_user = user_repository::find_by_id(state.db()?, auth_user_id).await?;
+    let effective_query = DebtListQuery {
+        pagination: query.pagination.clone(),
+        user_id: if auth_user.username == "admin" {
+            query.user_id
+        } else {
+            Some(auth_user_id)
+        },
+        status: query.status.clone(),
+        keyword: query.keyword.clone(),
+    };
+    debt_repository::list(state.db()?, &effective_query).await
 }
 
-pub async fn detail(state: &AppState, id: u64) -> Result<Debt, AppError> {
-    debt_repository::find_by_id(state.db()?, id).await
+pub async fn detail(state: &AppState, id: u64, auth_user_id: u64) -> Result<Debt, AppError> {
+    let debt = debt_repository::find_by_id(state.db()?, id).await?;
+    ensure_owner_access(state, auth_user_id, debt.user_id).await?;
+    Ok(debt)
 }
 
-pub async fn create(state: &AppState, payload: &CreateDebtRequest) -> Result<Debt, AppError> {
+pub async fn create(
+    state: &AppState,
+    payload: &CreateDebtRequest,
+    auth_user_id: u64,
+) -> Result<Debt, AppError> {
     let category = validate_create(state, payload).await?;
+    ensure_owner_access(state, auth_user_id, payload.user_id).await?;
     let id = debt_repository::create(state.db()?, payload, &category.display_name, None).await?;
-    detail(state, id).await
+    detail(state, id, auth_user_id).await
 }
 
 pub async fn update(
     state: &AppState,
     id: u64,
     payload: &UpdateDebtRequest,
+    auth_user_id: u64,
 ) -> Result<Debt, AppError> {
+    let existing = debt_repository::find_by_id(state.db()?, id).await?;
+    ensure_owner_access(state, auth_user_id, existing.user_id).await?;
     let category = validate_update(state, payload).await?;
     debt_repository::update(state.db()?, id, payload, &category.display_name).await?;
-    detail(state, id).await
+    detail(state, id, auth_user_id).await
 }
 
-pub async fn delete(state: &AppState, id: u64) -> Result<(), AppError> {
+pub async fn delete(state: &AppState, id: u64, auth_user_id: u64) -> Result<(), AppError> {
+    let existing = debt_repository::find_by_id(state.db()?, id).await?;
+    ensure_owner_access(state, auth_user_id, existing.user_id).await?;
     debt_repository::soft_delete(state.db()?, id).await
+}
+
+async fn ensure_owner_access(
+    state: &AppState,
+    auth_user_id: u64,
+    owner_user_id: u64,
+) -> Result<(), AppError> {
+    let auth_user = user_repository::find_by_id(state.db()?, auth_user_id).await?;
+    if auth_user.username != "admin" && owner_user_id != auth_user_id {
+        return Err(AppError::Unauthorized);
+    }
+    Ok(())
 }
 
 async fn validate_create(

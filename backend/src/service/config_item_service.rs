@@ -45,6 +45,10 @@ pub const CONFIG_TYPES: &[ConfigTypeDto] = &[
         code: "brand_category",
         label: "品牌分类",
     },
+    ConfigTypeDto {
+        code: "system_setting",
+        label: "系统设置",
+    },
 ];
 
 pub async fn list(

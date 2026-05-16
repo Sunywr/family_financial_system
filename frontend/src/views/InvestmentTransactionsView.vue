@@ -9,6 +9,12 @@
     </div>
     <el-table :data="transactions.list" stripe>
       <el-table-column prop="id" label="ID" width="90" />
+      <el-table-column label="投资" min-width="180">
+        <template #default="{ row }">
+          {{ formatInvestment(row) }}
+        </template>
+      </el-table-column>
+      <el-table-column prop="source_bill_id" label="来源账单ID" width="120" />
       <el-table-column prop="transaction_date" label="日期" width="120" />
       <el-table-column label="动作" width="120">
         <template #default="{ row }">
@@ -56,6 +62,15 @@ const actionMap: Record<string, string> = {
   add_position: '加仓',
   reduce_position: '减仓',
   dividend: '分红'
+}
+
+function formatInvestment(row: InvestmentTransaction) {
+  if (row.investment_name && row.investment_code) {
+    return `${row.investment_name} (${row.investment_code})`
+  }
+  if (row.investment_name) return row.investment_name
+  if (row.investment_code) return row.investment_code
+  return `投资#${row.investment_id}`
 }
 
 async function loadData() {

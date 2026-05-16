@@ -1,0 +1,13 @@
+{
+  "status": "failed",
+  "meta": {
+    "ffs_base": "http://127.0.0.1:8080/api",
+    "pfm_base": "http://localhost:8000",
+    "username": "admin"
+  },
+  "metrics": [],
+  "structure": {},
+  "errors": [
+    "pfm captcha cannot be auto-decoded in current mode; provide --pfm-captcha-code or --pfm-token/--pfm-cookie"
+  ]
+}

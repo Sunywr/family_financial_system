@@ -10,32 +10,71 @@ use crate::{
     repository::{asset_repository, config_item_repository, user_repository},
 };
 
-pub async fn list(state: &AppState, query: &AssetListQuery) -> Result<(Vec<Asset>, u64), AppError> {
-    asset_repository::list(state.db()?, query).await
+pub async fn list(
+    state: &AppState,
+    query: &AssetListQuery,
+    auth_user_id: u64,
+) -> Result<(Vec<Asset>, u64), AppError> {
+    let auth_user = user_repository::find_by_id(state.db()?, auth_user_id).await?;
+    let effective_query = AssetListQuery {
+        pagination: query.pagination.clone(),
+        user_id: if auth_user.username == "admin" {
+            query.user_id
+        } else {
+            Some(auth_user_id)
+        },
+        status: query.status.clone(),
+        keyword: query.keyword.clone(),
+    };
+    asset_repository::list(state.db()?, &effective_query).await
 }
 
-pub async fn detail(state: &AppState, id: u64) -> Result<Asset, AppError> {
-    asset_repository::find_by_id(state.db()?, id).await
+pub async fn detail(state: &AppState, id: u64, auth_user_id: u64) -> Result<Asset, AppError> {
+    let asset = asset_repository::find_by_id(state.db()?, id).await?;
+    ensure_owner_access(state, auth_user_id, asset.user_id).await?;
+    Ok(asset)
 }
 
-pub async fn create(state: &AppState, payload: &CreateAssetRequest) -> Result<Asset, AppError> {
+pub async fn create(
+    state: &AppState,
+    payload: &CreateAssetRequest,
+    auth_user_id: u64,
+) -> Result<Asset, AppError> {
     let category = validate_create(state, payload).await?;
+    ensure_owner_access(state, auth_user_id, payload.user_id).await?;
     let id = asset_repository::create(state.db()?, payload, &category.display_name, None).await?;
-    detail(state, id).await
+    detail(state, id, auth_user_id).await
 }
 
 pub async fn update(
     state: &AppState,
     id: u64,
     payload: &UpdateAssetRequest,
+    auth_user_id: u64,
 ) -> Result<Asset, AppError> {
+    let existing = asset_repository::find_by_id(state.db()?, id).await?;
+    ensure_owner_access(state, auth_user_id, existing.user_id).await?;
     let category = validate_update(state, payload).await?;
     asset_repository::update(state.db()?, id, payload, &category.display_name).await?;
-    detail(state, id).await
+    detail(state, id, auth_user_id).await
 }
 
-pub async fn delete(state: &AppState, id: u64) -> Result<(), AppError> {
+pub async fn delete(state: &AppState, id: u64, auth_user_id: u64) -> Result<(), AppError> {
+    let existing = asset_repository::find_by_id(state.db()?, id).await?;
+    ensure_owner_access(state, auth_user_id, existing.user_id).await?;
     asset_repository::soft_delete(state.db()?, id).await
+}
+
+async fn ensure_owner_access(
+    state: &AppState,
+    auth_user_id: u64,
+    owner_user_id: u64,
+) -> Result<(), AppError> {
+    let auth_user = user_repository::find_by_id(state.db()?, auth_user_id).await?;
+    if auth_user.username != "admin" && owner_user_id != auth_user_id {
+        return Err(AppError::Unauthorized);
+    }
+    Ok(())
 }
 
 async fn validate_create(
