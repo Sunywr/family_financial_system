@@ -204,10 +204,40 @@ async function handleLogout() {
 
 <style scoped>
 .app-layout {
+  position: relative;
   display: flex;
   min-height: 100vh;
   gap: 20px;
   padding: 20px;
+}
+
+.app-layout::before,
+.app-layout::after {
+  content: "";
+  position: fixed;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(10px);
+}
+
+.app-layout::before {
+  top: 8%;
+  left: -120px;
+  width: 360px;
+  height: 360px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 187, 94, 0.18) 0%, rgba(255, 187, 94, 0) 72%);
+  animation: floatHalo 16s ease-in-out infinite alternate;
+}
+
+.app-layout::after {
+  right: -100px;
+  bottom: 4%;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(76, 132, 255, 0.16) 0%, rgba(76, 132, 255, 0) 72%);
+  animation: floatHalo 18s ease-in-out infinite alternate-reverse;
 }
 
 .mobile-backdrop {
@@ -215,6 +245,8 @@ async function handleLogout() {
 }
 
 .app-sidebar {
+  position: relative;
+  z-index: 1;
   width: 300px;
   min-width: 300px;
   flex-shrink: 0;
@@ -222,6 +254,22 @@ async function handleLogout() {
   flex-direction: column;
   padding: 20px 16px;
   overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86) 0%, rgba(243, 247, 252, 0.75) 100%),
+    linear-gradient(135deg, rgba(76, 132, 255, 0.08), rgba(255, 187, 94, 0.08));
+  border: 1px solid rgba(255, 255, 255, 0.52);
+  box-shadow: 0 28px 54px rgba(15, 23, 42, 0.12);
+}
+
+.app-sidebar::before {
+  content: "";
+  position: absolute;
+  inset: -10% auto auto -18%;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 191, 102, 0.16) 0%, rgba(255, 191, 102, 0) 72%);
+  animation: pulseGlow 10s ease-in-out infinite alternate;
 }
 
 .app-sidebar.collapsed {
@@ -231,12 +279,18 @@ async function handleLogout() {
 }
 
 .sidebar-brand {
+  position: relative;
   padding: 8px 8px 18px;
 }
 
 .sidebar-title {
   font-size: 28px;
   font-weight: 800;
+  letter-spacing: 0.08em;
+  background: linear-gradient(135deg, #1f3d67 0%, #355c92 52%, #987247 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .sidebar-subtitle {
@@ -249,6 +303,29 @@ async function handleLogout() {
   flex: 1;
   border-right: none;
   background: transparent;
+}
+
+.sidebar-menu :deep(.el-menu-item),
+.sidebar-menu :deep(.el-sub-menu__title) {
+  margin-bottom: 6px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  transition: transform 0.22s ease, background-color 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
+}
+
+.sidebar-menu :deep(.el-menu-item:hover),
+.sidebar-menu :deep(.el-sub-menu__title:hover) {
+  transform: translateX(4px);
+  background: linear-gradient(135deg, rgba(76, 132, 255, 0.1), rgba(255, 190, 102, 0.12));
+  border-color: rgba(148, 163, 184, 0.18);
+  box-shadow: 0 12px 20px rgba(15, 23, 42, 0.06);
+}
+
+.sidebar-menu :deep(.el-menu-item.is-active) {
+  color: #1d3d6b;
+  background: linear-gradient(135deg, rgba(66, 120, 226, 0.18), rgba(255, 196, 116, 0.18));
+  border-color: rgba(66, 120, 226, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
 }
 
 .sidebar-menu :deep(.el-menu-item .el-icon),
@@ -273,6 +350,7 @@ async function handleLogout() {
 .sidebar-footer {
   padding: 12px 8px 2px;
   border-top: 1px solid rgba(148, 163, 184, 0.2);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.28));
 }
 
 .collapse-btn {
@@ -309,6 +387,8 @@ async function handleLogout() {
 }
 
 .app-main {
+  position: relative;
+  z-index: 1;
   min-width: 0;
   flex: 1;
   display: flex;
@@ -349,6 +429,19 @@ async function handleLogout() {
 
 .page-content {
   flex: 1;
+  position: relative;
+}
+
+.page-content::before {
+  content: "";
+  position: absolute;
+  inset: 8px 6% auto auto;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 203, 129, 0.12) 0%, rgba(255, 203, 129, 0) 72%);
+  pointer-events: none;
+  filter: blur(8px);
 }
 
 @media (max-width: 1280px) {
@@ -356,8 +449,7 @@ async function handleLogout() {
     width: 280px;
     min-width: 280px;
   }
-    '/auto-invest-plans': '定投计划',
-  }
+}
 
 @media (max-width: 900px) {
   .app-layout {
@@ -375,7 +467,7 @@ async function handleLogout() {
     min-width: min(82vw, 320px);
     border-radius: 16px;
     transform: translateX(calc(-100% - 16px));
-    transition: transform 0.22s ease;
+    transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
     box-shadow: 0 18px 48px rgba(15, 23, 42, 0.22);
   }
 
@@ -390,6 +482,9 @@ async function handleLogout() {
     margin-bottom: 12px;
     padding: 8px 10px;
     border-radius: 14px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(244, 248, 252, 0.7)),
+      linear-gradient(135deg, rgba(76, 132, 255, 0.08), rgba(255, 190, 102, 0.08));
   }
 
   .mobile-menu-open .app-sidebar {
@@ -404,9 +499,10 @@ async function handleLogout() {
     border: 0;
     padding: 0;
     margin: 0;
-    background: rgba(15, 23, 42, 0.28);
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.16), rgba(15, 23, 42, 0.34));
     opacity: 0;
     pointer-events: none;
+    backdrop-filter: blur(4px);
     transition: opacity 0.22s ease;
   }
 
@@ -445,6 +541,26 @@ async function handleLogout() {
   .app-sidebar.collapsed .sidebar-menu :deep(.el-menu-item .el-icon),
   .app-sidebar.collapsed .sidebar-menu :deep(.el-sub-menu__title .el-icon) {
     margin-right: 10px;
+  }
+}
+
+@keyframes floatHalo {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(18px, -20px, 0) scale(1.08);
+  }
+}
+
+@keyframes pulseGlow {
+  from {
+    opacity: 0.42;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0.9;
+    transform: scale(1.12);
   }
 }
 </style>

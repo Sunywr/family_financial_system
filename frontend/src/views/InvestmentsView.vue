@@ -696,7 +696,38 @@ onMounted(async () => {
 
 <style scoped>
 .page {
+  position: relative;
   padding: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(246, 249, 252, 0.74)),
+    linear-gradient(135deg, rgba(76, 132, 255, 0.05), rgba(255, 190, 102, 0.06));
+}
+
+.page::before,
+.page::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(8px);
+}
+
+.page::before {
+  top: 22px;
+  right: 3%;
+  width: 190px;
+  height: 190px;
+  background: radial-gradient(circle, rgba(76, 132, 255, 0.12) 0%, rgba(76, 132, 255, 0) 72%);
+  animation: investmentsHalo 15s ease-in-out infinite alternate;
+}
+
+.page::after {
+  top: 180px;
+  left: -42px;
+  width: 150px;
+  height: 150px;
+  background: radial-gradient(circle, rgba(255, 190, 102, 0.12) 0%, rgba(255, 190, 102, 0) 72%);
+  animation: investmentsHalo 18s ease-in-out infinite alternate-reverse;
 }
 
 .head {
@@ -705,16 +736,29 @@ onMounted(async () => {
   align-items: flex-start;
   gap: 16px;
   margin-bottom: 16px;
+  padding: 18px 20px;
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(247, 250, 253, 0.72)),
+    linear-gradient(135deg, rgba(76, 132, 255, 0.08), rgba(255, 190, 102, 0.1));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.54);
 }
 
 .head h2 {
   margin: 0;
+  font-size: 28px;
+  letter-spacing: -0.04em;
+  background: linear-gradient(135deg, #173454 0%, #2d5587 46%, #8b6b3f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .subhead {
   margin: 8px 0 0;
   color: #64748b;
   font-size: 13px;
+  max-width: 620px;
 }
 
 .actions,
@@ -723,6 +767,11 @@ onMounted(async () => {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.38);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  backdrop-filter: blur(12px);
 }
 
 .summary-row {
@@ -730,12 +779,19 @@ onMounted(async () => {
   gap: 10px;
   margin-bottom: 12px;
   flex-wrap: wrap;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(246, 249, 252, 0.72)),
+    linear-gradient(135deg, rgba(76, 132, 255, 0.06), rgba(255, 190, 102, 0.07));
+  border: 1px solid rgba(148, 163, 184, 0.16);
 }
 
 .pagination-wrap {
-  margin-top: 16px;
+  margin-top: 18px;
   display: flex;
   justify-content: flex-end;
+  padding: 12px 14px 0;
 }
 
 .context-banner {
@@ -743,11 +799,47 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding: 14px;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(246, 249, 252, 0.72)),
+    linear-gradient(135deg, rgba(76, 132, 255, 0.06), rgba(255, 190, 102, 0.07));
+  border: 1px solid rgba(148, 163, 184, 0.16);
 }
 
 .context-actions {
   display: flex;
   justify-content: flex-end;
+}
+
+.page :deep(.el-tabs__nav-wrap::after) {
+  height: 1px;
+  background: rgba(148, 163, 184, 0.16);
+}
+
+.page :deep(.el-tabs__item.is-active) {
+  transform: translateY(-1px);
+}
+
+.page :deep(.el-tag) {
+  border-radius: 999px;
+}
+
+.page :deep(.el-table) {
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.page :deep(.el-table th.el-table__cell) {
+  background: linear-gradient(180deg, rgba(244, 248, 252, 0.92), rgba(236, 242, 248, 0.9));
+}
+
+.page :deep(.el-drawer__body),
+.page :deep(.el-dialog__body) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 250, 253, 0.84)),
+    linear-gradient(135deg, rgba(76, 132, 255, 0.04), rgba(255, 190, 102, 0.05));
 }
 
 .profit-positive {
@@ -760,6 +852,17 @@ onMounted(async () => {
 
 .profit-neutral {
   color: #111827;
+}
+
+@keyframes investmentsHalo {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.46;
+  }
+  to {
+    transform: translate3d(14px, -10px, 0) scale(1.12);
+    opacity: 0.88;
+  }
 }
 
 @media (max-width: 900px) {

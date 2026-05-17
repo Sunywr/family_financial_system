@@ -1179,16 +1179,63 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.page { padding: 24px; }
+.page {
+  position: relative;
+  padding: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(246, 249, 252, 0.74)),
+    linear-gradient(135deg, rgba(76, 132, 255, 0.05), rgba(255, 190, 102, 0.06));
+}
+
+.page::before {
+  content: "";
+  position: absolute;
+  top: 20px;
+  right: 2%;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(76, 132, 255, 0.12) 0%, rgba(76, 132, 255, 0) 72%);
+  filter: blur(8px);
+  pointer-events: none;
+  animation: billsHalo 14s ease-in-out infinite alternate;
+}
+
 .head {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 16px;
   margin-bottom: 16px;
+  padding: 18px 20px;
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(247, 250, 253, 0.72)),
+    linear-gradient(135deg, rgba(76, 132, 255, 0.08), rgba(255, 190, 102, 0.1));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.54);
 }
-.head h2 { margin: 0; }
-.actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.head h2 {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: -0.04em;
+  background: linear-gradient(135deg, #173454 0%, #2d5587 46%, #8b6b3f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.38);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  backdrop-filter: blur(12px);
+}
+
 .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .btn-group { display: flex; flex-wrap: wrap; gap: 8px; }
 .field-hint { margin-top: 6px; color: #6b7280; font-size: 12px; line-height: 1.5; }
@@ -1196,9 +1243,43 @@ onBeforeUnmount(() => {
 .mb-12 { margin-bottom: 12px; }
 .mt-12 { margin-top: 12px; }
 .mr-4 { margin-right: 4px; }
-.pagination-wrap { margin-top: 16px; display: flex; justify-content: flex-end; }
-.context-banner { margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px; }
+.pagination-wrap {
+  margin-top: 18px;
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 14px 0;
+}
+
+.context-banner {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(246, 249, 252, 0.72)),
+    linear-gradient(135deg, rgba(76, 132, 255, 0.06), rgba(255, 190, 102, 0.07));
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
 .context-actions { display: flex; justify-content: flex-end; }
+
+.page :deep(.el-table) {
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.page :deep(.el-table th.el-table__cell) {
+  background: linear-gradient(180deg, rgba(244, 248, 252, 0.92), rgba(236, 242, 248, 0.9));
+}
+
+.page :deep(.el-dialog__body) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 250, 253, 0.84)),
+    linear-gradient(135deg, rgba(76, 132, 255, 0.04), rgba(255, 190, 102, 0.05));
+}
 
 .mobile-cards {
   display: flex;
@@ -1209,6 +1290,9 @@ onBeforeUnmount(() => {
 .mobile-card {
   padding: 12px;
   border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(247, 250, 252, 0.74)),
+    linear-gradient(135deg, rgba(76, 132, 255, 0.06), rgba(255, 190, 102, 0.07));
 }
 
 .mobile-card-head {
@@ -1217,6 +1301,8 @@ onBeforeUnmount(() => {
   gap: 8px;
   font-size: 13px;
   color: #475569;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
 }
 
 .mobile-card-row {
@@ -1259,5 +1345,16 @@ onBeforeUnmount(() => {
   width: 44px;
   height: 44px;
   box-shadow: 0 12px 24px rgba(37, 99, 235, 0.3);
+}
+
+@keyframes billsHalo {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.46;
+  }
+  to {
+    transform: translate3d(16px, -10px, 0) scale(1.12);
+    opacity: 0.88;
+  }
 }
 </style>

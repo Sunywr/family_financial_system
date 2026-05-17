@@ -1,5 +1,5 @@
 <template>
-  <section>
+  <section class="dashboard-page">
     <div class="panel dashboard-header">
       <div class="dashboard-header-main">
         <div>
@@ -1027,12 +1027,63 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.dashboard-page {
+  position: relative;
+}
+
+.dashboard-page::before,
+.dashboard-page::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+  filter: blur(12px);
+  z-index: 0;
+}
+
+.dashboard-page::before {
+  top: 18px;
+  right: 3%;
+  width: 220px;
+  height: 220px;
+  background: radial-gradient(circle, rgba(84, 138, 255, 0.14) 0%, rgba(84, 138, 255, 0) 72%);
+  animation: dashboardHalo 14s ease-in-out infinite alternate;
+}
+
+.dashboard-page::after {
+  top: 420px;
+  left: -60px;
+  width: 180px;
+  height: 180px;
+  background: radial-gradient(circle, rgba(255, 188, 96, 0.14) 0%, rgba(255, 188, 96, 0) 72%);
+  animation: dashboardHalo 18s ease-in-out infinite alternate-reverse;
+}
+
+.dashboard-page > * {
+  position: relative;
+  z-index: 1;
+}
+
 .dashboard-header {
   padding: 20px;
   margin-bottom: 16px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(247, 250, 253, 0.78)),
+    linear-gradient(135deg, rgba(76, 132, 255, 0.1), rgba(255, 189, 99, 0.12));
+}
+
+.dashboard-header::after {
+  content: "";
+  position: absolute;
+  inset: auto -24px -60px auto;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(84, 138, 255, 0.16) 0%, rgba(84, 138, 255, 0) 72%);
+  animation: dashboardPulse 9s ease-in-out infinite alternate;
 }
 
 .dashboard-header-main {
@@ -1045,6 +1096,12 @@ onBeforeUnmount(() => {
 
 .dashboard-title {
   margin: 0;
+  font-size: 30px;
+  letter-spacing: -0.04em;
+  background: linear-gradient(135deg, #173454 0%, #2d5587 45%, #8b6b3f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .dashboard-subtitle {
@@ -1056,9 +1113,51 @@ onBeforeUnmount(() => {
   margin-bottom: 16px;
 }
 
+.dashboard-metrics :deep(.metric-card) {
+  position: relative;
+}
+
+.dashboard-metrics :deep(.metric-card:nth-child(1)) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(245, 249, 253, 0.6)),
+    linear-gradient(135deg, rgba(75, 130, 255, 0.09), rgba(154, 192, 255, 0.06));
+}
+
+.dashboard-metrics :deep(.metric-card:nth-child(2)) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(250, 248, 244, 0.62)),
+    linear-gradient(135deg, rgba(255, 190, 102, 0.08), rgba(255, 220, 164, 0.08));
+}
+
+.dashboard-metrics :deep(.metric-card:nth-child(3)) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(244, 249, 247, 0.62)),
+    linear-gradient(135deg, rgba(94, 190, 162, 0.08), rgba(137, 221, 198, 0.06));
+}
+
+.dashboard-metrics :deep(.metric-card:nth-child(4)) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(248, 246, 252, 0.62)),
+    linear-gradient(135deg, rgba(113, 122, 255, 0.08), rgba(180, 165, 255, 0.07));
+}
+
 .chart-panel {
   padding: 20px;
   margin-bottom: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(244, 248, 252, 0.72)),
+    linear-gradient(135deg, rgba(77, 133, 255, 0.09), rgba(255, 196, 116, 0.08));
+}
+
+.chart-panel::before {
+  content: "";
+  position: absolute;
+  inset: auto auto 22px 26px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 196, 116, 0.15) 0%, rgba(255, 196, 116, 0) 72%);
+  animation: dashboardPulse 10s ease-in-out infinite alternate-reverse;
 }
 
 .chart-head {
@@ -1072,10 +1171,16 @@ onBeforeUnmount(() => {
 
 .chart-title {
   margin: 0;
+  font-size: 20px;
+  letter-spacing: -0.02em;
 }
 
 .chart-body {
   height: 320px;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0.18)),
+    linear-gradient(135deg, rgba(76, 132, 255, 0.05), rgba(255, 190, 102, 0.06));
 }
 
 .grid-two {
@@ -1086,6 +1191,37 @@ onBeforeUnmount(() => {
 
 .section-panel {
   padding: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(245, 248, 252, 0.74)),
+    linear-gradient(135deg, rgba(76, 132, 255, 0.06), rgba(255, 190, 102, 0.06));
+}
+
+.section-panel:nth-child(odd)::after {
+  background: radial-gradient(circle, rgba(76, 132, 255, 0.14) 0%, rgba(76, 132, 255, 0) 72%);
+}
+
+.section-panel:nth-child(even)::after {
+  background: radial-gradient(circle, rgba(255, 188, 96, 0.14) 0%, rgba(255, 188, 96, 0) 72%);
+}
+
+.section-panel h3 {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 0;
+  margin-bottom: 14px;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+
+.section-panel h3::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #4974b9, #f0b166);
+  box-shadow: 0 0 0 6px rgba(73, 116, 185, 0.08);
 }
 
 .summary-block {
@@ -1100,7 +1236,11 @@ onBeforeUnmount(() => {
   gap: 12px;
   padding: 14px 16px;
   border-radius: 16px;
-  background: linear-gradient(135deg, rgba(241, 245, 249, 0.95), rgba(248, 250, 252, 0.95));
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(247, 250, 252, 0.78)),
+    linear-gradient(135deg, rgba(76, 132, 255, 0.08), rgba(255, 190, 102, 0.1));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
 }
 
 .summary-label {
@@ -1113,6 +1253,7 @@ onBeforeUnmount(() => {
   font-size: 26px;
   font-weight: 700;
   color: #0f172a;
+  letter-spacing: -0.04em;
 }
 
 .summary-value-sm {
@@ -1128,12 +1269,21 @@ onBeforeUnmount(() => {
 .summary-stat {
   padding: 12px 14px;
   border-radius: 14px;
-  background: rgba(248, 250, 252, 0.9);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(248, 250, 252, 0.74)),
+    linear-gradient(135deg, rgba(76, 132, 255, 0.04), rgba(255, 190, 102, 0.05));
   border: 1px solid rgba(148, 163, 184, 0.16);
   display: flex;
   flex-direction: column;
   gap: 6px;
   color: #475569;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+.summary-stat:hover {
+  transform: translateY(-3px);
+  border-color: rgba(148, 163, 184, 0.28);
+  box-shadow: 0 18px 28px rgba(15, 23, 42, 0.08);
 }
 
 .summary-stat strong {
@@ -1151,12 +1301,22 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
 }
 
+.summary-actions :deep(.el-button) {
+  border-radius: 999px;
+  padding-inline: 4px;
+}
+
 .drawer-toolbar {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
   margin-bottom: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(246, 249, 252, 0.74)),
+    linear-gradient(135deg, rgba(76, 132, 255, 0.05), rgba(255, 190, 102, 0.06));
 }
 
 .action-inline {
@@ -1180,6 +1340,7 @@ onBeforeUnmount(() => {
 
 .empty-tip {
   color: #94a3b8;
+  padding: 18px 0 8px;
 }
 
 .repay-list {
@@ -1210,6 +1371,9 @@ onBeforeUnmount(() => {
 .mobile-card-mini {
   padding: 12px;
   border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(247, 250, 252, 0.74)),
+    linear-gradient(135deg, rgba(76, 132, 255, 0.06), rgba(255, 190, 102, 0.07));
 }
 
 .mobile-card-mini-head {
@@ -1233,9 +1397,35 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
+@keyframes dashboardHalo {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.5;
+  }
+  to {
+    transform: translate3d(16px, -12px, 0) scale(1.12);
+    opacity: 0.9;
+  }
+}
+
+@keyframes dashboardPulse {
+  from {
+    transform: scale(1);
+    opacity: 0.46;
+  }
+  to {
+    transform: scale(1.14);
+    opacity: 0.82;
+  }
+}
+
 @media (max-width: 960px) {
   .grid-two {
     grid-template-columns: 1fr;
+  }
+
+  .dashboard-title {
+    font-size: 26px;
   }
 
   .summary-hero,

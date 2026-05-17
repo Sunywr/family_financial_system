@@ -1,11 +1,11 @@
 <template>
-  <section class="panel" style="padding: 24px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 18px;">
+  <section class="panel page">
+    <div class="head">
       <div>
         <h2 style="margin: 0;">信用卡配置</h2>
         <p style="margin: 8px 0 0; color: #64748b;">支持信用卡分页、创建、修改和删除。</p>
       </div>
-      <div style="display: flex; gap: 12px; align-items: center;">
+      <div class="actions">
         <el-tag>{{ cards.total }} cards</el-tag>
         <el-button type="primary" @click="openCreate">新增信用卡</el-button>
       </div>
@@ -223,9 +223,101 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.page {
+  position: relative;
+  padding: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(246, 249, 252, 0.74)),
+    linear-gradient(135deg, rgba(76, 132, 255, 0.05), rgba(255, 190, 102, 0.06));
+}
+
+.page::before {
+  content: "";
+  position: absolute;
+  top: 22px;
+  right: 3%;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(76, 132, 255, 0.12) 0%, rgba(76, 132, 255, 0) 72%);
+  filter: blur(8px);
+  pointer-events: none;
+  animation: cardsHalo 16s ease-in-out infinite alternate;
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+  padding: 18px 20px;
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(247, 250, 253, 0.72)),
+    linear-gradient(135deg, rgba(76, 132, 255, 0.08), rgba(255, 190, 102, 0.1));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.54);
+}
+
+.head h2 {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: -0.04em;
+  background: linear-gradient(135deg, #173454 0%, #2d5587 46%, #8b6b3f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.head p {
+  margin: 8px 0 0;
+  color: #64748b;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.38);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  backdrop-filter: blur(12px);
+}
+
+.page :deep(.el-table) {
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.page :deep(.el-table th.el-table__cell) {
+  background: linear-gradient(180deg, rgba(244, 248, 252, 0.92), rgba(236, 242, 248, 0.9));
+}
+
+.page :deep(.el-dialog__body) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 250, 253, 0.84)),
+    linear-gradient(135deg, rgba(76, 132, 255, 0.04), rgba(255, 190, 102, 0.05));
+}
+
 .pagination-wrap {
-  margin-top: 16px;
+  margin-top: 18px;
   display: flex;
   justify-content: flex-end;
+  padding: 12px 14px 0;
+}
+
+@keyframes cardsHalo {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.46;
+  }
+  to {
+    transform: translate3d(-12px, 12px, 0) scale(1.1);
+    opacity: 0.88;
+  }
 }
 </style>

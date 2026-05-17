@@ -688,8 +688,15 @@ pub async fn list_pending_debts_upcoming(
                                 CASE
                                     WHEN d.payment_method = 'credit_card' THEN COALESCE(cc.name, d.category_name)
                                     ELSE COALESCE(
-                                        NULLIF(SUBSTRING_INDEX(TRIM(d.remark), ' | ', 1), ''),
-                                        NULLIF(TRIM(d.remark), ''),
+                                        CASE
+                                            WHEN CHAR_LENGTH(TRIM(SUBSTRING_INDEX(TRIM(d.remark), ' | ', 1))) > 0
+                                                THEN SUBSTRING_INDEX(TRIM(d.remark), ' | ', 1)
+                                            ELSE NULL
+                                        END,
+                                        CASE
+                                            WHEN CHAR_LENGTH(TRIM(d.remark)) > 0 THEN TRIM(d.remark)
+                                            ELSE NULL
+                                        END,
                                         d.category_name
                                     )
                                 END AS display_name,
@@ -817,8 +824,15 @@ pub async fn list_cycle_debt_bills_upcoming(
                 b.id AS bill_id,
                 COALESCE(d.category_name, b.category_name) AS category_name,
                 COALESCE(
-                    NULLIF(SUBSTRING_INDEX(TRIM(d.remark), ' | ', 1), ''),
-                    NULLIF(TRIM(d.remark), ''),
+                    CASE
+                        WHEN CHAR_LENGTH(TRIM(SUBSTRING_INDEX(TRIM(d.remark), ' | ', 1))) > 0
+                            THEN SUBSTRING_INDEX(TRIM(d.remark), ' | ', 1)
+                        ELSE NULL
+                    END,
+                    CASE
+                        WHEN CHAR_LENGTH(TRIM(d.remark)) > 0 THEN TRIM(d.remark)
+                        ELSE NULL
+                    END,
                     d.category_name,
                     b.category_name
                 ) AS display_name,

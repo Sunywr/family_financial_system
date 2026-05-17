@@ -30,6 +30,24 @@ cd backend
 cargo run -- scheduler
 ```
 
+Linux musl release build (from Windows):
+
+```powershell
+cd backend
+powershell -ExecutionPolicy Bypass -File .\scripts\build_musl.ps1 -InstallDeps
+```
+
+If dependencies are already installed, you can skip auto-install:
+
+```powershell
+cd backend
+powershell -ExecutionPolicy Bypass -File .\scripts\build_musl.ps1
+```
+
+Output binary location:
+
+- `backend/target/x86_64-unknown-linux-musl/release/`
+
 Configuration file:
 
 - `backend/hfs.toml`
