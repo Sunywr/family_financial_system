@@ -8,19 +8,47 @@
       <el-tag>{{ jobs.total }} jobs</el-tag>
     </div>
 
-    <el-table :data="jobs.list" stripe>
-      <el-table-column prop="id" label="ID" width="80" />
-      <el-table-column prop="job_name" label="任务名称" min-width="170" />
-      <el-table-column prop="job_code" label="任务编码" min-width="180" />
-      <el-table-column prop="cron_expr" label="Cron" min-width="180" />
-      <el-table-column label="启用" width="100">
+    <el-table v-loading="loading" :data="jobs.list" stripe>
+      <el-table-column prop="id" label="ID" width="60" />
+      <el-table-column prop="job_name" label="任务名称" min-width="150" />
+      <el-table-column prop="job_code" label="任务编码" min-width="200" />
+      <el-table-column prop="cron_expr" label="Cron" min-width="160" />
+      <el-table-column label="启用" width="70">
         <template #default="{ row }">
-          <el-tag :type="row.enabled ? 'success' : 'info'">
+          <el-tag :type="row.enabled ? 'success' : 'info'" size="small">
             {{ row.enabled ? '是' : '否' }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="210">
+      <el-table-column label="上次状态" width="90">
+        <template #default="{ row }">
+          <el-tag
+            v-if="row.last_run_status"
+            :type="row.last_run_status === 'success' ? 'success' : row.last_run_status === 'running' ? 'warning' : 'danger'"
+            size="small"
+          >
+            {{ row.last_run_status }}
+          </el-tag>
+          <span v-else class="text-secondary">-</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="上次执行时间" min-width="310">
+        <template #default="{ row }">
+          <span v-if="row.last_run_started_at">
+            {{ fmtDatetime(row.last_run_started_at) }}
+            <span class="arrow"> → </span>
+            {{ row.last_run_finished_at ? fmtDatetime(row.last_run_finished_at) : '运行中…' }}
+          </span>
+          <span v-else class="text-secondary">-</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="时长" width="90">
+        <template #default="{ row }">
+          <span v-if="row.last_run_duration_ms != null">{{ fmtDuration(row.last_run_duration_ms) }}</span>
+          <span v-else class="text-secondary">-</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" width="160">
         <template #default="{ row }">
           <el-button size="small" @click="openEdit(row)">编辑</el-button>
           <el-button size="small" type="primary" @click="runJob(row.id)">执行</el-button>
@@ -77,6 +105,7 @@ import { ElMessage } from 'element-plus'
 import { fetchJobs, triggerJob, updateJob, type JobConfig } from '@/api/jobs'
 
 const jobs = ref<{ list: JobConfig[]; total: number }>({ list: [], total: 0 })
+const loading = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(20)
 const dialogVisible = ref(false)
@@ -92,8 +121,13 @@ const form = ref({
 })
 
 async function loadJobs() {
-  const data = await fetchJobs(currentPage.value, pageSize.value)
-  jobs.value = { list: data.list, total: data.total }
+  loading.value = true
+  try {
+    const data = await fetchJobs(currentPage.value, pageSize.value)
+    jobs.value = { list: data.list, total: data.total }
+  } finally {
+    loading.value = false
+  }
 }
 
 function openEdit(row: JobConfig) {
@@ -145,6 +179,22 @@ onMounted(async () => {
     ElMessage.error('任务页面初始化失败')
   }
 })
+
+function fmtDatetime(iso: string | null | undefined): string {
+  if (!iso) return '-'
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
+function fmtDuration(ms: number | null | undefined): string {
+  if (ms == null) return '-'
+  if (ms < 1000) return `${ms}ms`
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
+  const m = Math.floor(ms / 60000)
+  const s = Math.floor((ms % 60000) / 1000)
+  return `${m}m${s}s`
+}
 </script>
 
 <style scoped>
@@ -168,5 +218,12 @@ onMounted(async () => {
   margin-top: 16px;
   display: flex;
   justify-content: flex-end;
+}
+.text-secondary {
+  color: #94a3b8;
+}
+.arrow {
+  color: #94a3b8;
+  font-size: 12px;
 }
 </style>

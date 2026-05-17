@@ -1,3 +1,4 @@
+pub mod auto_invest_plan_repository;
 pub mod asset_repository;
 pub mod balance_calibration_repository;
 pub mod bill_repository;

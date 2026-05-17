@@ -99,13 +99,15 @@ pub async fn summary(
     )
     .await?;
     let salary_day = resolve_salary_day(&salary_samples);
-    let salary_target_date = resolve_salary_target_date(query.end_date, salary_day);
+    // Use today as the salary-prep anchor when the selected range ends in the future.
+    let salary_anchor_date = query.end_date.min(Local::now().date_naive());
+    let salary_target_date = resolve_salary_target_date(salary_anchor_date, salary_day);
     let next_salary_date = resolve_salary_target_date(salary_target_date, salary_day);
     let upcoming_end = next_salary_date;
     let pending_debts = dashboard_repository::list_pending_debts_upcoming(
         pool,
         query.user_id,
-        query.end_date,
+        salary_anchor_date,
         upcoming_end,
         20,
     )
@@ -113,7 +115,7 @@ pub async fn summary(
     let pending_cycle_bills = dashboard_repository::list_cycle_debt_bills_upcoming(
         pool,
         query.user_id,
-        query.end_date,
+        salary_anchor_date,
         upcoming_end,
         200,
     )
@@ -129,7 +131,7 @@ pub async fn summary(
         .cloned()
         .collect::<Vec<_>>();
     let cycle_pending_items =
-        merge_cycle_pending_items(&debt_cycle_items, &pending_cycle_bills, query.end_date);
+        merge_cycle_pending_items(&debt_cycle_items, &pending_cycle_bills, salary_anchor_date);
 
     let mut pending_credit_total = Decimal::ZERO;
     let mut pending_cycle_total = Decimal::ZERO;
@@ -146,10 +148,13 @@ pub async fn summary(
     for item in &credit_pending_items {
         let row = DashboardPendingItem {
             id: Some(item.id),
+            credit_card_id: item.credit_card_id,
             name: item.display_name.clone(),
             item_type: pending_item_type(&item.payment_method).to_string(),
             due_date: item.repay_deadline,
             amount: format_decimal2(item.amount),
+            required_period_count: None,
+            paid_period_count: None,
         };
         pending_all.push(row.clone());
 
@@ -172,10 +177,13 @@ pub async fn summary(
     for item in &cycle_pending_items {
         let row = DashboardPendingItem {
             id: Some(item.id),
+            credit_card_id: None,
             name: item.display_name.clone(),
             item_type: pending_item_type(&item.payment_method).to_string(),
             due_date: item.repay_deadline,
             amount: format_decimal2(item.amount),
+            required_period_count: item.required_period_count,
+            paid_period_count: item.paid_period_count,
         };
         pending_all.push(row.clone());
 
@@ -255,11 +263,11 @@ pub async fn summary(
     }
 
     let salary_prep = DashboardSalaryPrepSummary {
-        window_start: query.end_date,
+        window_start: salary_anchor_date,
         window_end: upcoming_end,
         salary_day,
         salary_target_date,
-        days_until_salary: (salary_target_date - query.end_date).num_days().max(0),
+        days_until_salary: (salary_target_date - salary_anchor_date).num_days().max(0),
         pending_count: pending_all.len(),
         credit_count: pending_credit_count,
         cycle_count: pending_cycle_count,
@@ -275,7 +283,7 @@ pub async fn summary(
 
     let repay_trend = DashboardRepayTrendSummary {
         source: "ffs_realtime".to_string(),
-        window_start: query.end_date,
+        window_start: salary_anchor_date,
         window_end: upcoming_end,
         salary_target_date,
         items: trend_rows,
@@ -539,6 +547,7 @@ fn parse_pending_item(value: &Value, default_type: &str) -> Option<DashboardPend
 
     Some(DashboardPendingItem {
         id: value.get("id").and_then(Value::as_u64),
+        credit_card_id: value.get("credit_card_id").and_then(Value::as_u64),
         name,
         item_type: value
             .get("type")
@@ -551,6 +560,14 @@ fn parse_pending_item(value: &Value, default_type: &str) -> Option<DashboardPend
             .and_then(Value::as_str)
             .unwrap_or("--")
             .to_string(),
+        required_period_count: value
+            .get("required_period_count")
+            .and_then(Value::as_u64)
+            .map(|v| v as u32),
+        paid_period_count: value
+            .get("paid_period_count")
+            .and_then(Value::as_u64)
+            .map(|v| v as u32),
     })
 }
 
@@ -737,11 +754,14 @@ mod tests {
     fn item(id: u64, due_date: NaiveDate, amount: i64, name: &str) -> PendingDebtItem {
         PendingDebtItem {
             id,
+            credit_card_id: None,
             category_name: "loan".to_string(),
             display_name: name.to_string(),
             payment_method: "cash".to_string(),
             amount: Decimal::from(amount),
             repay_deadline: due_date,
+            required_period_count: None,
+            paid_period_count: None,
         }
     }
 

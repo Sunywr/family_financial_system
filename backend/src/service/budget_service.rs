@@ -113,6 +113,47 @@ pub async fn generate(
     Ok(affected)
 }
 
+pub async fn generate_for_scheduler(
+    pool: &sqlx::MySqlPool,
+    user_id: u64,
+    month_start: NaiveDate,
+) -> Result<usize, AppError> {
+    let categories = config_item_repository::list(
+        pool,
+        &crate::dto::config_item::ConfigItemListQuery {
+            pagination: crate::common::pagination::PaginationQuery {
+                page: 1,
+                page_size: 200,
+            },
+            config_type: Some("account_category".to_string()),
+            keyword: None,
+            enabled: Some(true),
+        },
+    )
+    .await?
+    .0;
+
+    let mut affected = 0usize;
+    for category in categories {
+        if ["stock", "wealth", "transfer"].contains(&category.name.as_str()) {
+            continue;
+        }
+        let planned = compute_budget_amount(pool, user_id, month_start, &category).await?;
+        budget_repository::upsert_generated(
+            pool,
+            user_id,
+            month_start,
+            category.id,
+            &category.display_name,
+            &format_decimal2(planned),
+        )
+        .await?;
+        affected += 1;
+    }
+
+    Ok(affected)
+}
+
 async fn compute_budget_amount(
     pool: &sqlx::MySqlPool,
     user_id: u64,

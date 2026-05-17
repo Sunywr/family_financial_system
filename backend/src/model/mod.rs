@@ -1,3 +1,4 @@
+pub mod auto_invest_plan;
 pub mod asset;
 pub mod balance_calibration;
 pub mod bill;

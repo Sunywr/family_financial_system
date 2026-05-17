@@ -44,7 +44,7 @@
       <el-tag type="success">总收益金额：{{ stockTotalProfit }}</el-tag>
     </div>
 
-    <el-table :data="investments.list" stripe>
+    <el-table v-loading="loading" :data="investments.list" stripe>
       <el-table-column prop="id" label="ID" width="90" />
       <el-table-column label="名称" min-width="220">
         <template #default="{ row }">
@@ -70,10 +70,14 @@
         </template>
       </el-table-column>
       <el-table-column prop="market_value" label="市值" width="120" />
-      <el-table-column prop="total_profit" label="收益金额" width="120" />
+      <el-table-column label="收益金额" width="120">
+        <template #default="{ row }">
+          <span :class="profitColorClass(toNumber(row.total_profit))">{{ row.total_profit }}</span>
+        </template>
+      </el-table-column>
       <el-table-column label="收益率" width="120">
         <template #default="{ row }">
-          {{ formatRate(row) }}
+          <span :class="profitColorClass(toNumber(row.total_profit_rate))">{{ formatRate(row) }}</span>
         </template>
       </el-table-column>
       <el-table-column v-if="tab === 'stock'" label="仓位" width="120">
@@ -223,7 +227,13 @@
         <el-table-column prop="code" label="代码" width="130" />
         <el-table-column prop="score" label="评分" width="90" />
         <el-table-column prop="suggestion" label="建议" width="120" />
-        <el-table-column prop="total_profit_rate" label="收益率" width="120" />
+        <el-table-column label="收益率" width="120">
+          <template #default="{ row }">
+            <span :class="profitColorClass(toNumber(row.total_profit_rate))">
+              {{ `${(toNumber(row.total_profit_rate) * 100).toFixed(2)}%` }}
+            </span>
+          </template>
+        </el-table-column>
         <el-table-column prop="reason" label="原因" min-width="320" show-overflow-tooltip />
       </el-table>
       <div class="pagination-wrap">
@@ -284,6 +294,7 @@ const dashboardContextLabel = computed(() => {
 })
 
 const investments = ref<{ list: Investment[]; total: number }>({ list: [], total: 0 })
+const loading = ref(false)
 const stockIdleCash = ref('0.00')
 
 const dialogVisible = ref(false)
@@ -379,8 +390,19 @@ function wealthKindLabel(item: Investment) {
 }
 
 function formatRate(item: Investment) {
-  const value = Number.parseFloat(item.total_profit_rate || '0') * 100
+  const value = toNumber(item.total_profit_rate) * 100
   return `${value.toFixed(2)}%`
+}
+
+function toNumber(value: string | number | null | undefined) {
+  const parsed = Number.parseFloat(String(value ?? '0'))
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function profitColorClass(value: number) {
+  if (value > 0) return 'profit-positive'
+  if (value < 0) return 'profit-negative'
+  return 'profit-neutral'
 }
 
 function formatPosition(item: Investment) {
@@ -568,22 +590,27 @@ async function submitEdit() {
 }
 
 async function loadData() {
-  const data = await fetchInvestments({
-    user_id: !isAdmin.value || onlyMine.value ? currentUserId : undefined,
-    page: currentPage.value,
-    page_size: pageSize.value,
-    investment_type: tab.value,
-    show_sold: showSold.value,
-    keyword: keyword.value || undefined
-  })
-  investments.value = data
+  loading.value = true
+  try {
+    const data = await fetchInvestments({
+      user_id: !isAdmin.value || onlyMine.value ? currentUserId : undefined,
+      page: currentPage.value,
+      page_size: pageSize.value,
+      investment_type: tab.value,
+      show_sold: showSold.value,
+      keyword: keyword.value || undefined
+    })
+    investments.value = data
 
-  const summary = await fetchDashboardSummary({
-    user_id: currentUserId,
-    start_date: `${today.slice(0, 8)}01`,
-    end_date: today
-  })
-  stockIdleCash.value = summary.stock_idle_cash
+    const summary = await fetchDashboardSummary({
+      user_id: currentUserId,
+      start_date: `${today.slice(0, 8)}01`,
+      end_date: today
+    })
+    stockIdleCash.value = summary.stock_idle_cash
+  } finally {
+    loading.value = false
+  }
 }
 
 function search() {
@@ -721,6 +748,18 @@ onMounted(async () => {
 .context-actions {
   display: flex;
   justify-content: flex-end;
+}
+
+.profit-positive {
+  color: #dc2626;
+}
+
+.profit-negative {
+  color: #16a34a;
+}
+
+.profit-neutral {
+  color: #111827;
 }
 
 @media (max-width: 900px) {

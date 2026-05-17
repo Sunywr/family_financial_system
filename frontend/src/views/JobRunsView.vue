@@ -8,7 +8,7 @@
       <el-tag>{{ runs.total }} runs</el-tag>
     </div>
 
-    <el-table :data="runs.list" stripe>
+    <el-table v-loading="loading" :data="runs.list" stripe>
       <el-table-column prop="job_id" label="任务ID" width="90" />
       <el-table-column prop="status" label="状态" width="120" />
       <el-table-column prop="trigger_type" label="触发方式" width="120" />
@@ -39,10 +39,16 @@ import { fetchJobRuns, type JobRun } from '@/api/jobs'
 const runs = ref<{ list: JobRun[]; total: number }>({ list: [], total: 0 })
 const currentPage = ref(1)
 const pageSize = ref(20)
+const loading = ref(false)
 
 async function loadRuns() {
-  const data = await fetchJobRuns(currentPage.value, pageSize.value)
-  runs.value = { list: data.list, total: data.total }
+  loading.value = true
+  try {
+    const data = await fetchJobRuns(currentPage.value, pageSize.value)
+    runs.value = { list: data.list, total: data.total }
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(async () => {

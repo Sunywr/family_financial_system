@@ -5,7 +5,7 @@ use crate::{
     common::id::parse_u64_id,
     dto::job::{JobListQuery, JobRunListQuery, UpdateJobRequest},
     error::app_error::AppError,
-    model::{dashboard_snapshot::DashboardSnapshot, job_config::JobConfig, job_run::JobRun},
+    model::{dashboard_snapshot::DashboardSnapshot, job_config::{JobConfig, JobConfigSummary}, job_run::JobRun},
 };
 
 fn map_job(row: sqlx::mysql::MySqlRow) -> Result<JobConfig, sqlx::Error> {
@@ -21,6 +21,26 @@ fn map_job(row: sqlx::mysql::MySqlRow) -> Result<JobConfig, sqlx::Error> {
         retry_count: row.try_get("retry_count")?,
         created_at: row.try_get("created_at")?,
         updated_at: row.try_get("updated_at")?,
+    })
+}
+
+fn map_job_summary(row: sqlx::mysql::MySqlRow) -> Result<JobConfigSummary, sqlx::Error> {
+    Ok(JobConfigSummary {
+        id: row.try_get("id")?,
+        job_code: row.try_get("job_code")?,
+        job_name: row.try_get("job_name")?,
+        cron_expr: row.try_get("cron_expr")?,
+        enabled: row.try_get("enabled")?,
+        batch_size: row.try_get("batch_size")?,
+        concurrency: row.try_get("concurrency")?,
+        timeout_seconds: row.try_get("timeout_seconds")?,
+        retry_count: row.try_get("retry_count")?,
+        created_at: row.try_get("created_at")?,
+        updated_at: row.try_get("updated_at")?,
+        last_run_status: row.try_get("last_status")?,
+        last_run_started_at: row.try_get("last_started_at")?,
+        last_run_finished_at: row.try_get("last_finished_at")?,
+        last_run_duration_ms: row.try_get("last_duration_ms")?,
     })
 }
 
@@ -71,14 +91,23 @@ pub async fn seed_jobs(pool: &sqlx::MySqlPool) -> Result<(), AppError> {
             "0 15 0 * * * *",
         ),
         ("dashboard_snapshot_daily", "首页快照", "0 10 23 * * * *"),
+        (
+            "budget_generate_monthly",
+            "每月预算自动生成",
+            "0 5 0 1 * * *",
+        ),
+        (
+            "auto_invest_generate_daily",
+            "定投自动生成账单",
+            "0 20 0 * * * *",
+        ),
     ];
-
     for (job_code, job_name, cron_expr) in jobs {
         sqlx::query(
             "INSERT INTO job_configs (job_code, job_name, cron_expr, enabled, batch_size, concurrency, timeout_seconds, retry_count)
              VALUES (?, ?, ?, 1, 100, 1, 300, 0)
-             ON DUPLICATE KEY UPDATE job_name = VALUES(job_name), cron_expr = VALUES(cron_expr)",
-        )
+               ON DUPLICATE KEY UPDATE job_name = VALUES(job_name), cron_expr = VALUES(cron_expr)",
+           )
         .bind(job_code)
         .bind(job_name)
         .bind(cron_expr)
@@ -92,7 +121,7 @@ pub async fn seed_jobs(pool: &sqlx::MySqlPool) -> Result<(), AppError> {
 pub async fn list_jobs(
     pool: &sqlx::MySqlPool,
     query: &JobListQuery,
-) -> Result<(Vec<JobConfig>, u64), AppError> {
+) -> Result<(Vec<JobConfigSummary>, u64), AppError> {
     let total_row = sqlx::query(
         "SELECT COUNT(*) AS total
          FROM job_configs
@@ -106,11 +135,23 @@ pub async fn list_jobs(
     let total = total_row.try_get::<i64, _>("total")?.max(0) as u64;
 
     let rows = sqlx::query(
-        "SELECT id, job_code, job_name, cron_expr, enabled, batch_size, concurrency, timeout_seconds, retry_count, created_at, updated_at
-         FROM job_configs
-         WHERE deleted_at IS NULL
-           AND (? IS NULL OR enabled = ?)
-         ORDER BY id ASC
+        "SELECT jc.id, jc.job_code, jc.job_name, jc.cron_expr, jc.enabled,
+                jc.batch_size, jc.concurrency, jc.timeout_seconds, jc.retry_count,
+                jc.created_at, jc.updated_at,
+                jr.status   AS last_status,
+                jr.started_at  AS last_started_at,
+                jr.finished_at AS last_finished_at,
+                jr.duration_ms AS last_duration_ms
+         FROM job_configs jc
+         LEFT JOIN (
+             SELECT job_id, MAX(id) AS last_id
+             FROM job_runs
+             GROUP BY job_id
+         ) agg ON agg.job_id = jc.id
+         LEFT JOIN job_runs jr ON jr.id = agg.last_id
+         WHERE jc.deleted_at IS NULL
+           AND (? IS NULL OR jc.enabled = ?)
+         ORDER BY jc.id ASC
          LIMIT ? OFFSET ?",
     )
     .bind(query.enabled)
@@ -122,7 +163,7 @@ pub async fn list_jobs(
 
     Ok((
         rows.into_iter()
-            .map(map_job)
+            .map(map_job_summary)
             .collect::<Result<Vec<_>, _>>()?,
         total,
     ))

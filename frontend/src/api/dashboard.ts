@@ -2,10 +2,13 @@ import { client, type ApiResponse } from './client'
 
 export interface DashboardPendingItem {
   id?: number
+  credit_card_id?: number
   name: string
   type: string
   due_date: string
   amount: string
+  required_period_count?: number
+  paid_period_count?: number
 }
 
 export interface DashboardSalaryPrepSummary {

@@ -6,6 +6,7 @@
     radial-gradient(circle at top left, rgba(255, 209, 102, 0.4), transparent 32%),
     radial-gradient(circle at top right, rgba(102, 163, 255, 0.28), transparent 30%),
     linear-gradient(180deg, #f7f9fc 0%, #eef3f8 100%);
+  scroll-behavior: smooth;
 }
 
 * {
@@ -26,13 +27,20 @@ body {
   padding: 24px;
 }
 
+.page {
+  overflow-x: hidden;
+}
+
+/* ── Panel ─────────────────────────────────────── */
 .panel {
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 20px;
   box-shadow: 0 14px 40px rgba(15, 23, 42, 0.08);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
+/* ── Metric cards ──────────────────────────────── */
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -41,6 +49,13 @@ body {
 
 .metric-card {
   padding: 18px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  will-change: transform;
+}
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.13);
 }
 
 .metric-label {
@@ -52,4 +67,160 @@ body {
   margin-top: 10px;
   font-size: 26px;
   font-weight: 700;
+}
+
+/* ── Page entrance animation ───────────────────── */
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Route-level page transitions ─────────────── */
+.page-enter-active {
+  animation: fadeSlideIn 0.22s ease both;
+}
+
+.page-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  will-change: opacity, transform;
+}
+
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* ── Section-level fade-in (staggered via nth-child) */
+.section-fade-enter-active {
+  animation: fadeSlideIn 0.24s ease both;
+}
+
+/* ── El-table transition ───────────────────────── */
+.el-table {
+  transition: opacity 0.18s ease;
+}
+
+@media (max-width: 900px) {
+  :root {
+    font-size: 14px;
+  }
+
+  .page-shell,
+  .page {
+    padding: 14px !important;
+  }
+
+  .head {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .actions,
+  .drawer-toolbar,
+  .context-actions {
+    width: 100%;
+    display: grid !important;
+    grid-template-columns: 1fr;
+    gap: 10px !important;
+    justify-content: stretch !important;
+  }
+
+  .actions > *,
+  .drawer-toolbar > *,
+  .context-actions > * {
+    width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .grid-2,
+  .grid-two,
+  .summary-hero,
+  .summary-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .metric-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .metric-card {
+    padding: 14px;
+  }
+
+  .metric-value {
+    font-size: 22px;
+  }
+
+  .pagination-wrap {
+    justify-content: center !important;
+    overflow-x: auto;
+    padding-bottom: 6px;
+  }
+
+  .el-dialog {
+    width: calc(100vw - 24px) !important;
+    margin-top: 5vh !important;
+  }
+
+  .el-drawer {
+    width: min(94vw, 460px) !important;
+  }
+
+  .el-dialog {
+    width: calc(100vw - 24px) !important;
+  }
+
+  .el-dialog__body {
+    max-height: calc(100vh - 180px);
+    overflow-y: auto;
+  }
+
+  .el-date-editor.el-input,
+  .el-date-editor.el-input__wrapper,
+  .el-select,
+  .el-input,
+  .el-input-number,
+  .el-cascader,
+  .el-autocomplete {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .el-form-item__content > .el-input-number {
+    width: 100% !important;
+  }
+
+  .el-table {
+    font-size: 12px;
+  }
+
+  .el-table__body-wrapper,
+  .el-table__header-wrapper,
+  .el-table__footer-wrapper,
+  .el-scrollbar__wrap {
+    overflow-x: auto !important;
+  }
+
+  .el-table .cell {
+    white-space: nowrap;
+  }
+}
+
+/* ── Reduce motion ────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

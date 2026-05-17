@@ -4,11 +4,17 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DashboardPendingItem {
     pub id: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credit_card_id: Option<u64>,
     pub name: String,
     #[serde(rename = "type")]
     pub item_type: String,
     pub due_date: NaiveDate,
     pub amount: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub required_period_count: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub paid_period_count: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -2,6 +2,7 @@ use chrono::{Datelike, Duration, NaiveDate};
 use rust_decimal::Decimal;
 use serde_json::Value;
 use sqlx::Row;
+use std::cmp;
 
 use crate::{common::id::parse_u64_id, error::app_error::AppError};
 
@@ -32,11 +33,14 @@ pub struct LegacyHomepageSummary {
 #[derive(Debug, Clone)]
 pub struct PendingDebtItem {
     pub id: u64,
+    pub credit_card_id: Option<u64>,
     pub category_name: String,
     pub display_name: String,
     pub payment_method: String,
     pub amount: Decimal,
     pub repay_deadline: NaiveDate,
+    pub required_period_count: Option<u32>,
+    pub paid_period_count: Option<u32>,
 }
 
 #[derive(Debug, Clone)]
@@ -107,6 +111,16 @@ fn scheduled_occurrences(
     }
 
     (total.max(1), matched)
+}
+
+fn month_span_inclusive(start_date: NaiveDate, end_date: NaiveDate) -> u32 {
+    if end_date < start_date {
+        return 0;
+    }
+    let months = (end_date.year() - start_date.year()) * 12
+        + (end_date.month() as i32 - start_date.month() as i32)
+        + 1;
+    months.max(1) as u32
 }
 
 fn debt_due_amount_in_range(
@@ -393,10 +407,10 @@ async fn list_pending_debts(
     payment_method: Option<&str>,
 ) -> Result<Vec<ScheduledDebtRow>, AppError> {
     let rows = sqlx::query(
-        "SELECT start_date, repay_deadline, CAST(amount AS CHAR) AS amount, period_unit, period_value, payment_method
+          "SELECT start_date, repay_deadline, CAST(amount AS CHAR) AS amount, period_unit, period_value, payment_method
          FROM debts
          WHERE user_id = ?
-           AND status = 'pending'
+              AND status IN ('pending', 'debt_pending')
            AND deleted_at IS NULL
            AND (? IS NULL OR payment_method = ?)",
     )
@@ -680,11 +694,14 @@ pub async fn list_pending_debts_upcoming(
                                     )
                                 END AS display_name,
                                 d.payment_method,
+                                b.credit_card_id,
                                 CAST(d.amount AS CHAR) AS amount,
                                 d.start_date,
                                 d.repay_deadline,
                                 d.period_unit,
-                                d.period_value
+                                d.period_value,
+                                d.end_date,
+                                COALESCE(paid.paid_period_count, 0) AS paid_period_count
                  FROM debts d
                  LEFT JOIN bills b
                      ON b.id = d.source_bill_id
@@ -693,8 +710,16 @@ pub async fn list_pending_debts_upcoming(
                      ON cc.id = b.credit_card_id
                     AND cc.user_id = d.user_id
                     AND cc.deleted_at IS NULL
-                 WHERE d.user_id = ?
-           AND status = 'pending'
+                 LEFT JOIN (
+                    SELECT related_debt_id, COUNT(*) AS paid_period_count
+                    FROM bills
+                    WHERE related_debt_id IS NOT NULL
+                      AND bill_type = 'expense'
+                      AND deleted_at IS NULL
+                    GROUP BY related_debt_id
+                 ) paid ON paid.related_debt_id = d.id
+                                 WHERE d.user_id = ?
+                                     AND d.status IN ('pending', 'debt_pending')
                      AND d.repay_deadline IS NOT NULL
                      AND d.deleted_at IS NULL
                  ORDER BY d.repay_deadline ASC, d.id ASC",
@@ -722,11 +747,14 @@ pub async fn list_pending_debts_upcoming(
             if deadline >= start_date && deadline <= end_date {
                 items.push(PendingDebtItem {
                     id,
+                    credit_card_id: row.try_get::<Option<u64>, _>("credit_card_id")?,
                     category_name: category_name.clone(),
                     display_name: display_name.clone(),
                     payment_method: payment_method.clone(),
                     amount,
                     repay_deadline: deadline,
+                    required_period_count: None,
+                    paid_period_count: None,
                 });
             }
             continue;
@@ -738,18 +766,15 @@ pub async fn list_pending_debts_upcoming(
 
         let period_unit: String = row.try_get("period_unit")?;
         let period_value: u32 = row.try_get::<u32, _>("period_value")?.max(1);
-        let (total_occurrences, _) = scheduled_occurrences(
-            start,
-            deadline,
-            &period_unit,
-            period_value,
-            start_date,
-            end_date,
-        );
+        let end_date_value = row.try_get::<Option<NaiveDate>, _>("end_date")?;
+        let effective_deadline = end_date_value.map_or(deadline, |value| cmp::min(value, deadline));
+        let total_occurrences = month_span_inclusive(start, effective_deadline).max(1);
+        let paid_period_count_raw = row.try_get::<i64, _>("paid_period_count")?.max(0) as u64;
+        let paid_period_count = cmp::min(paid_period_count_raw, total_occurrences as u64) as u32;
         let per_cycle_amount = amount / Decimal::from(total_occurrences.max(1));
         for due_date in scheduled_due_dates_in_range(
             start,
-            deadline,
+            effective_deadline,
             &period_unit,
             period_value,
             start_date,
@@ -757,11 +782,14 @@ pub async fn list_pending_debts_upcoming(
         ) {
             items.push(PendingDebtItem {
                 id,
+                credit_card_id: None,
                 category_name: category_name.clone(),
                 display_name: display_name.clone(),
                 payment_method: payment_method.clone(),
                 amount: per_cycle_amount,
                 repay_deadline: due_date,
+                required_period_count: Some(total_occurrences.max(1)),
+                paid_period_count: Some(paid_period_count),
             });
         }
     }
@@ -796,11 +824,23 @@ pub async fn list_cycle_debt_bills_upcoming(
                 ) AS display_name,
                 b.payment_method,
                 CAST(b.amount AS CHAR) AS amount,
-                b.account_date AS due_date
+                  b.account_date AS due_date,
+                  d.start_date,
+                  d.end_date,
+                  d.repay_deadline,
+                  COALESCE(paid.paid_period_count, 0) AS paid_period_count
          FROM bills b
          LEFT JOIN debts d
                 ON d.id = b.related_debt_id
                AND d.deleted_at IS NULL
+              LEFT JOIN (
+                  SELECT related_debt_id, COUNT(*) AS paid_period_count
+                  FROM bills
+                  WHERE related_debt_id IS NOT NULL
+                    AND bill_type = 'expense'
+                    AND deleted_at IS NULL
+                  GROUP BY related_debt_id
+              ) paid ON paid.related_debt_id = b.related_debt_id
          WHERE b.user_id = ?
            AND b.related_debt_id IS NOT NULL
            AND b.special_status = 'debt_cycle_auto'
@@ -828,14 +868,30 @@ pub async fn list_cycle_debt_bills_upcoming(
                 .try_get::<Option<u64>, _>("related_debt_id")?
                 .or_else(|| row.try_get::<Option<u64>, _>("bill_id").ok().flatten())
                 .unwrap_or(0);
+            let start_date = row.try_get::<Option<NaiveDate>, _>("start_date")?;
+            let end_date = row
+                .try_get::<Option<NaiveDate>, _>("end_date")?
+                .or_else(|| row.try_get::<Option<NaiveDate>, _>("repay_deadline").ok().flatten());
+            let required_period_count = match (start_date, end_date) {
+                (Some(start), Some(end)) => Some(month_span_inclusive(start, end).max(1)),
+                _ => None,
+            };
+            let paid_period_count_raw = row.try_get::<i64, _>("paid_period_count")?.max(0) as u64;
+            let paid_period_count = match (required_period_count, paid_period_count_raw) {
+                (Some(required), paid) => Some(cmp::min(paid, required as u64) as u32),
+                _ => None,
+            };
 
             Ok(PendingDebtItem {
                 id,
+                credit_card_id: None,
                 category_name: row.try_get("category_name")?,
                 display_name: row.try_get("display_name")?,
                 payment_method: row.try_get("payment_method")?,
                 amount,
                 repay_deadline: row.try_get("due_date")?,
+                required_period_count,
+                paid_period_count,
             })
         })
         .collect::<Result<Vec<_>, sqlx::Error>>()

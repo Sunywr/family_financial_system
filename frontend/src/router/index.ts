@@ -107,6 +107,11 @@ const router = createRouter({
           path: 'credit-cards',
           name: 'creditCards',
           component: () => import('@/views/CreditCardsView.vue')
+        },
+        {
+          path: 'auto-invest-plans',
+          name: 'autoInvestPlans',
+          component: () => import('@/views/AutoInvestPlansView.vue')
         }
       ]
     }

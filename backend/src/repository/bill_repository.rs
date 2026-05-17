@@ -325,3 +325,23 @@ pub async fn soft_delete(pool: &sqlx::MySqlPool, id: u64) -> Result<(), AppError
 
     Ok(())
 }
+
+    pub async fn exists_by_remark_marker(
+        pool: &sqlx::MySqlPool,
+        user_id: u64,
+        marker: &str,
+    ) -> Result<bool, AppError> {
+        let marker_pattern = format!("%{}%", marker);
+        let row = sqlx::query(
+            "SELECT EXISTS(
+                SELECT 1 FROM bills
+                WHERE user_id = ? AND remark LIKE ? AND deleted_at IS NULL
+             ) AS ex",
+        )
+        .bind(user_id as i64)
+        .bind(&marker_pattern)
+        .fetch_one(pool)
+        .await?;
+        let ex: i64 = row.try_get("ex")?;
+        Ok(ex != 0)
+    }

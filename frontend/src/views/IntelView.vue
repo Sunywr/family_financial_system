@@ -8,7 +8,7 @@
       <el-button type="primary" @click="openCreate">新增情报</el-button>
     </div>
 
-    <el-table :data="intel.list" stripe>
+    <el-table v-loading="loading" :data="intel.list" stripe>
       <el-table-column prop="title" label="标题" min-width="220" />
       <el-table-column prop="source" label="来源" width="140" />
       <el-table-column prop="item_date" label="日期" width="120" />
@@ -81,6 +81,7 @@ import { createIntel, deleteIntel, fetchIntel, updateIntel, type IntelItem } fro
 const intel = ref<{ list: IntelItem[]; total: number }>({ list: [], total: 0 })
 const currentPage = ref(1)
 const pageSize = ref(50)
+const loading = ref(false)
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
 const currentUserId = requireCurrentUserId()
@@ -109,8 +110,13 @@ function resetForm() {
 }
 
 async function loadIntel() {
-  const data = await fetchIntel(currentPage.value, pageSize.value)
-  intel.value = { list: data.list, total: data.total }
+  loading.value = true
+  try {
+    const data = await fetchIntel(currentPage.value, pageSize.value)
+    intel.value = { list: data.list, total: data.total }
+  } finally {
+    loading.value = false
+  }
 }
 
 function openCreate() {

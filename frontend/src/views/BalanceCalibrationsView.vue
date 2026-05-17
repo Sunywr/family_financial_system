@@ -8,7 +8,7 @@
       <el-tag>{{ calibrations.total }} records</el-tag>
     </div>
 
-    <el-table :data="calibrations.list" stripe>
+    <el-table v-loading="loading" :data="calibrations.list" stripe>
       <el-table-column prop="calibration_date" label="校准日期" width="140" />
       <el-table-column prop="cash_balance" label="现金余额" width="140" />
       <el-table-column prop="remark" label="备注" min-width="220" />
@@ -35,10 +35,16 @@ import { fetchBalanceCalibrations, type BalanceCalibration } from '@/api/balance
 const calibrations = ref<{ list: BalanceCalibration[]; total: number }>({ list: [], total: 0 })
 const currentPage = ref(1)
 const pageSize = ref(20)
+const loading = ref(false)
 
 async function loadCalibrations() {
-  const data = await fetchBalanceCalibrations(undefined, currentPage.value, pageSize.value)
-  calibrations.value = { list: data.list, total: data.total }
+  loading.value = true
+  try {
+    const data = await fetchBalanceCalibrations(undefined, currentPage.value, pageSize.value)
+    calibrations.value = { list: data.list, total: data.total }
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(async () => {

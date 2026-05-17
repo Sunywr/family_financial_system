@@ -10,19 +10,9 @@ use crate::{
 pub async fn list(
     state: &AppState,
     query: &BillTagListQuery,
-    auth_user_id: u64,
+    _auth_user_id: u64,
 ) -> Result<(Vec<crate::model::bill_tag::BillTag>, u64), AppError> {
-    let auth_user = user_repository::find_by_id(state.db()?, auth_user_id).await?;
-    let effective_query = BillTagListQuery {
-        pagination: query.pagination.clone(),
-        user_id: if auth_user.username == "admin" {
-            query.user_id
-        } else {
-            Some(auth_user_id)
-        },
-        keyword: query.keyword.clone(),
-    };
-    bill_tag_repository::list(state.db()?, &effective_query).await
+    bill_tag_repository::list(state.db()?, query).await
 }
 
 pub async fn create(
@@ -30,46 +20,47 @@ pub async fn create(
     payload: &CreateBillTagRequest,
     auth_user_id: u64,
 ) -> Result<u64, AppError> {
-    ensure_owner_access(state, auth_user_id, payload.user_id).await?;
     if payload.name.trim().is_empty() {
         return Err(AppError::BadRequest("name is required".to_string()));
     }
-    if bill_tag_repository::find_by_name(state.db()?, payload.user_id, payload.name.trim())
+    if bill_tag_repository::find_by_name(state.db()?, payload.name.trim())
         .await?
         .is_some()
     {
         return Err(AppError::Conflict("tag already exists".to_string()));
     }
-    bill_tag_repository::create(state.db()?, payload).await
+    bill_tag_repository::create(
+        state.db()?,
+        &CreateBillTagRequest {
+            user_id: Some(auth_user_id),
+            name: payload.name.trim().to_string(),
+        },
+    )
+    .await
 }
 
 pub async fn update(
     state: &AppState,
     id: u64,
     payload: &UpdateBillTagRequest,
-    auth_user_id: u64,
+    _auth_user_id: u64,
 ) -> Result<(), AppError> {
-    let existing = bill_tag_repository::find_by_id(state.db()?, id).await?;
-    ensure_owner_access(state, auth_user_id, existing.user_id).await?;
     if payload.name.trim().is_empty() {
         return Err(AppError::BadRequest("name is required".to_string()));
     }
     bill_tag_repository::update(state.db()?, id, payload).await
 }
 
-pub async fn delete(state: &AppState, id: u64, auth_user_id: u64) -> Result<(), AppError> {
-    let existing = bill_tag_repository::find_by_id(state.db()?, id).await?;
-    ensure_owner_access(state, auth_user_id, existing.user_id).await?;
+pub async fn delete(state: &AppState, id: u64, _auth_user_id: u64) -> Result<(), AppError> {
     bill_tag_repository::soft_delete(state.db()?, id).await
 }
 
 pub async fn top_tags(
     state: &AppState,
-    user_id: u64,
-    auth_user_id: u64,
+    _auth_user_id: u64,
+    category_id: Option<u64>,
 ) -> Result<Vec<crate::model::bill_tag::BillTag>, AppError> {
-    ensure_owner_access(state, auth_user_id, user_id).await?;
-    bill_tag_repository::top_tags(state.db()?, user_id).await
+    bill_tag_repository::top_tags(state.db()?, category_id).await
 }
 
 pub async fn sync_legacy_if_empty(
@@ -95,7 +86,7 @@ pub async fn sync_legacy_if_empty(
     let mut skipped = 0_u64;
 
     for name in legacy_labels {
-        if bill_tag_repository::find_by_name(target_db, user_id, &name)
+        if bill_tag_repository::find_by_name(target_db, &name)
             .await?
             .is_some()
         {
@@ -105,7 +96,7 @@ pub async fn sync_legacy_if_empty(
         bill_tag_repository::create(
             target_db,
             &CreateBillTagRequest {
-                user_id,
+                user_id: Some(user_id),
                 name,
             },
         )

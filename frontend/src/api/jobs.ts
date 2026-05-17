@@ -11,6 +11,10 @@ export interface JobConfig {
   concurrency: number
   timeout_seconds: number
   retry_count: number
+  last_run_status?: string | null
+  last_run_started_at?: string | null
+  last_run_finished_at?: string | null
+  last_run_duration_ms?: number | null
 }
 
 export interface UpdateJobRequest {

@@ -13,7 +13,7 @@
       </div>
     </div>
 
-    <el-table :data="items.list" stripe>
+    <el-table v-loading="loading" :data="items.list" stripe>
       <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="config_type" label="类型" min-width="160" />
       <el-table-column prop="display_name" label="显示名" min-width="160" />
@@ -102,6 +102,7 @@ import {
 } from '@/api/config'
 
 const items = ref<{ list: ConfigItem[]; total: number }>({ list: [], total: 0 })
+const loading = ref(false)
 const typeOptions = ref<ConfigTypeOption[]>([])
 const filterType = ref('')
 const currentPage = ref(1)
@@ -117,17 +118,27 @@ const form = ref({
 })
 
 async function load() {
-  const [types, data] = await Promise.all([
-    fetchConfigTypes(),
-    fetchConfigItems(filterType.value, currentPage.value, pageSize.value)
-  ])
-  typeOptions.value = types
-  items.value = { list: data.list, total: data.total }
+  loading.value = true
+  try {
+    const [types, data] = await Promise.all([
+      fetchConfigTypes(),
+      fetchConfigItems(filterType.value, currentPage.value, pageSize.value)
+    ])
+    typeOptions.value = types
+    items.value = { list: data.list, total: data.total }
+  } finally {
+    loading.value = false
+  }
 }
 
 async function loadItemsOnly() {
-  const data = await fetchConfigItems(filterType.value, currentPage.value, pageSize.value)
-  items.value = { list: data.list, total: data.total }
+  loading.value = true
+  try {
+    const data = await fetchConfigItems(filterType.value, currentPage.value, pageSize.value)
+    items.value = { list: data.list, total: data.total }
+  } finally {
+    loading.value = false
+  }
 }
 
 function resetForm() {

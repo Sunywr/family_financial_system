@@ -12,7 +12,8 @@ pub struct BillTagListQuery {
 
 #[derive(Debug, Deserialize)]
 pub struct CreateBillTagRequest {
-    pub user_id: u64,
+    #[serde(default)]
+    pub user_id: Option<u64>,
     pub name: String,
 }
 

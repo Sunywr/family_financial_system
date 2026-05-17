@@ -1,4 +1,4 @@
-﻿import { client, type ApiResponse, withCurrentUserId } from './client'
+﻿import { client, type ApiResponse } from './client'
 import type { PageData } from '@/types/api'
 
 export interface BillTag {
@@ -16,7 +16,7 @@ export interface SyncLegacyBillTagsResult {
 
 export async function fetchBillTagsPage(page = 1, pageSize = 20, keyword = '') {
   const response = await client.get<ApiResponse<PageData<BillTag>>>('/bill-tags', {
-    params: withCurrentUserId({ page, page_size: pageSize, keyword: keyword || undefined })
+    params: { page, page_size: pageSize, keyword: keyword || undefined }
   })
   return response.data.data
 }
@@ -46,7 +46,7 @@ export async function fetchBillTags(keyword = '') {
   }
 }
 
-export async function createBillTag(payload: { user_id: number; name: string }) {
+export async function createBillTag(payload: { name: string }) {
   const response = await client.post<ApiResponse<{ id: number }>>('/bill-tags', payload)
   return response.data.data
 }
@@ -61,9 +61,9 @@ export async function deleteBillTag(id: number) {
   return response.data.data
 }
 
-export async function fetchTopBillTags(userId: number): Promise<BillTag[]> {
+export async function fetchTopBillTags(categoryId?: number): Promise<BillTag[]> {
   const response = await client.get<ApiResponse<BillTag[]>>('/bill-tags/top', {
-    params: { user_id: userId }
+    params: categoryId ? { category_id: categoryId } : undefined
   })
   return response.data.data
 }

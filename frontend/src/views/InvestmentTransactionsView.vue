@@ -7,7 +7,7 @@
         <el-button @click="search">查询</el-button>
       </div>
     </div>
-    <el-table :data="transactions.list" stripe>
+    <el-table v-loading="loading" :data="transactions.list" stripe>
       <el-table-column prop="id" label="ID" width="90" />
       <el-table-column label="投资" min-width="180">
         <template #default="{ row }">
@@ -56,6 +56,7 @@ import {
 const keyword = ref('')
 const currentPage = ref(1)
 const pageSize = ref(50)
+const loading = ref(false)
 const transactions = ref<{ list: InvestmentTransaction[]; total: number }>({ list: [], total: 0 })
 const actionMap: Record<string, string> = {
   open_position: '建仓',
@@ -74,7 +75,12 @@ function formatInvestment(row: InvestmentTransaction) {
 }
 
 async function loadData() {
-  transactions.value = await fetchInvestmentTransactions(keyword.value, currentPage.value, pageSize.value)
+  loading.value = true
+  try {
+    transactions.value = await fetchInvestmentTransactions(keyword.value, currentPage.value, pageSize.value)
+  } finally {
+    loading.value = false
+  }
 }
 
 function search() {

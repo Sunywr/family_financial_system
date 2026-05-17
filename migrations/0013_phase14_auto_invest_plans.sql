@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS auto_invest_plans (
+    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'Primary key',
+    user_id BIGINT UNSIGNED NOT NULL COMMENT 'Owner user id',
+    investment_id BIGINT UNSIGNED NOT NULL COMMENT 'Target investment id',
+    investment_name VARCHAR(128) NULL COMMENT 'Cached investment name',
+    name VARCHAR(128) NOT NULL COMMENT 'Plan name',
+    category_id BIGINT UNSIGNED NOT NULL COMMENT 'Bill category for generated expense bills',
+    category_name VARCHAR(128) NOT NULL COMMENT 'Cached category name',
+    amount DECIMAL(18,2) NOT NULL COMMENT 'Amount per cycle',
+    cycle_months INT UNSIGNED NOT NULL DEFAULT 1 COMMENT 'Cycle length in months',
+    start_date DATE NOT NULL COMMENT 'Plan start date',
+    end_date DATE NULL COMMENT 'Plan end date (null = no end)',
+    last_generated_date DATE NULL COMMENT 'Last date a bill was generated for',
+    status VARCHAR(32) NOT NULL DEFAULT 'active' COMMENT 'active paused stopped',
+    remark VARCHAR(255) NULL COMMENT 'Remark',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Created time',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Updated time',
+    deleted_at DATETIME NULL COMMENT 'Soft delete time',
+    KEY idx_auto_invest_plans_user (user_id),
+    KEY idx_auto_invest_plans_investment (investment_id)
+) COMMENT='Auto-invest periodic plan configs';

@@ -24,6 +24,7 @@ pub async fn list(
             Some(auth_user_id)
         },
         status: query.status.clone(),
+        payment_method: query.payment_method.clone(),
         keyword: query.keyword.clone(),
     };
     debt_repository::list(state.db()?, &effective_query).await

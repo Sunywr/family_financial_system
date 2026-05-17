@@ -253,6 +253,7 @@ async fn validate_special_fields_create(
         payload.is_installment.unwrap_or(false),
         payload.installment_months,
         payload.investment_action.as_deref(),
+        payload.related_investment_id,
         payload.product_code.as_deref(),
         payload.product_name.as_deref(),
         payload.organization_name.as_deref(),
@@ -281,6 +282,7 @@ async fn validate_special_fields_update(
         payload.is_installment.unwrap_or(false),
         payload.installment_months,
         payload.investment_action.as_deref(),
+        payload.related_investment_id,
         payload.product_code.as_deref(),
         payload.product_name.as_deref(),
         payload.organization_name.as_deref(),
@@ -303,6 +305,7 @@ async fn validate_special_fields(
     is_installment: bool,
     installment_months: Option<u32>,
     investment_action: Option<&str>,
+    related_investment_id: Option<u64>,
     product_code: Option<&str>,
     product_name: Option<&str>,
     organization_name: Option<&str>,
@@ -321,14 +324,29 @@ async fn validate_special_fields(
                 "investment category must use investment bill_type".to_string(),
             ));
         }
-        if investment_action.unwrap_or_default().trim().is_empty()
-            || product_code.unwrap_or_default().trim().is_empty()
-            || product_name.unwrap_or_default().trim().is_empty()
-            || organization_name.unwrap_or_default().trim().is_empty()
-            || share_amount.unwrap_or_default().trim().is_empty()
+        let action = investment_action.unwrap_or_default().trim();
+        if action.is_empty() || share_amount.unwrap_or_default().trim().is_empty() {
+            return Err(AppError::BadRequest(
+                "investment bills require investment_action and share_amount".to_string(),
+            ));
+        }
+        if action == "open_position"
+            && (product_code.unwrap_or_default().trim().is_empty()
+                || product_name.unwrap_or_default().trim().is_empty()
+                || organization_name.unwrap_or_default().trim().is_empty())
         {
             return Err(AppError::BadRequest(
-                "investment bills require investment_action, product_code, product_name, organization_name and share_amount".to_string(),
+                "open_position requires product_code, product_name and organization_name"
+                    .to_string(),
+            ));
+        }
+        if action != "open_position"
+            && related_investment_id.is_none()
+            && product_code.unwrap_or_default().trim().is_empty()
+        {
+            return Err(AppError::BadRequest(
+                "non-open investment bills require related_investment_id or product_code"
+                    .to_string(),
             ));
         }
         validate_decimal(share_amount.unwrap_or_default(), "share_amount")?;
@@ -447,14 +465,14 @@ async fn ensure_tags_exist(
         if trimmed.is_empty() {
             continue;
         }
-        if bill_tag_repository::find_by_name(state.db()?, user_id, trimmed)
+        if bill_tag_repository::find_by_name(state.db()?, trimmed)
             .await?
             .is_none()
         {
             let _ = bill_tag_repository::create(
                 state.db()?,
                 &crate::dto::bill_tag::CreateBillTagRequest {
-                    user_id,
+                    user_id: Some(user_id),
                     name: trimmed.to_string(),
                 },
             )
@@ -594,15 +612,50 @@ async fn create_or_update_investment_from_bill(
     } else {
         "wealth"
     };
-    let code = payload.product_code.as_deref().ok_or_else(|| {
-        AppError::BadRequest("product_code is required for investment bill".to_string())
-    })?;
-    let name = payload.product_name.as_deref().ok_or_else(|| {
-        AppError::BadRequest("product_name is required for investment bill".to_string())
-    })?;
-    let organization_name = payload.organization_name.as_deref().ok_or_else(|| {
-        AppError::BadRequest("organization_name is required for investment bill".to_string())
-    })?;
+    let linked_investment = if let Some(related_investment_id) = payload.related_investment_id {
+        let investment = investment_repository::find_by_id(pool, related_investment_id).await?;
+        if investment.user_id != payload.user_id {
+            return Err(AppError::BadRequest(
+                "related_investment_id does not belong to current user".to_string(),
+            ));
+        }
+        if investment.investment_type != investment_type {
+            return Err(AppError::BadRequest(
+                "related_investment_id does not match bill category".to_string(),
+            ));
+        }
+        Some(investment)
+    } else {
+        None
+    };
+    let code = payload
+        .product_code
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| linked_investment.as_ref().map(|investment| investment.code.as_str()))
+        .ok_or_else(|| {
+            AppError::BadRequest("product_code is required for investment bill".to_string())
+        })?;
+    let name = payload
+        .product_name
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| linked_investment.as_ref().map(|investment| investment.name.as_str()))
+        .ok_or_else(|| {
+            AppError::BadRequest("product_name is required for investment bill".to_string())
+        })?;
+    let organization_name = payload
+        .organization_name
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| {
+            linked_investment
+                .as_ref()
+                .map(|investment| investment.organization_name.as_str())
+        })
+        .ok_or_else(|| {
+            AppError::BadRequest("organization_name is required for investment bill".to_string())
+        })?;
     let shares =
         Decimal::from_str(payload.share_amount.as_deref().unwrap_or_default()).map_err(|_| {
             AppError::BadRequest("share_amount must be a valid decimal string".to_string())
@@ -615,9 +668,12 @@ async fn create_or_update_investment_from_bill(
         Decimal::ZERO
     };
 
-    let existing =
+    let existing = if let Some(investment) = linked_investment.clone() {
+        Some(investment)
+    } else {
         investment_repository::find_by_user_type_code(pool, payload.user_id, investment_type, code)
-            .await?;
+            .await?
+    };
 
     let (investment_id, avg_cost, realized_profit_for_tx) = if let Some(investment) = existing {
         let current_shares = Decimal::from_str(&investment.total_shares)

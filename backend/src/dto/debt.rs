@@ -9,6 +9,7 @@ pub struct DebtListQuery {
     pub pagination: PaginationQuery,
     pub user_id: Option<u64>,
     pub status: Option<String>,
+    pub payment_method: Option<String>,
     pub keyword: Option<String>,
 }
 

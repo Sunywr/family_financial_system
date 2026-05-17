@@ -8,7 +8,7 @@
       <el-tag>{{ brands.total }} brands</el-tag>
     </div>
 
-    <el-table :data="brands.list" stripe>
+    <el-table v-loading="loading" :data="brands.list" stripe>
       <el-table-column prop="brand_name" label="品牌" min-width="180" />
       <el-table-column prop="category_name" label="分类" width="140" />
       <el-table-column prop="score" label="评分" width="100" />
@@ -38,10 +38,16 @@ import { fetchBrands, type Brand } from '@/api/brands'
 const brands = ref<{ list: Brand[]; total: number }>({ list: [], total: 0 })
 const currentPage = ref(1)
 const pageSize = ref(20)
+const loading = ref(false)
 
 async function loadBrands() {
-  const data = await fetchBrands(currentPage.value, pageSize.value)
-  brands.value = { list: data.list, total: data.total }
+  loading.value = true
+  try {
+    const data = await fetchBrands(currentPage.value, pageSize.value)
+    brands.value = { list: data.list, total: data.total }
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(async () => {

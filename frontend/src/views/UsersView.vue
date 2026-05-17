@@ -8,7 +8,7 @@
       <el-tag>{{ users.total }} users</el-tag>
     </div>
 
-    <el-table :data="users.list" stripe>
+    <el-table v-loading="loading" :data="users.list" stripe>
       <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="username" label="用户名" />
       <el-table-column prop="display_name" label="显示名" />
@@ -41,14 +41,20 @@ import { fetchUsers, type User } from '@/api/users'
 
 const currentPage = ref(1)
 const pageSize = ref(20)
+const loading = ref(false)
 const users = ref<{ list: User[]; total: number }>({
   list: [],
   total: 0
 })
 
 async function loadUsers() {
-  const data = await fetchUsers(currentPage.value, pageSize.value)
-  users.value = { list: data.list, total: data.total }
+  loading.value = true
+  try {
+    const data = await fetchUsers(currentPage.value, pageSize.value)
+    users.value = { list: data.list, total: data.total }
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(async () => {

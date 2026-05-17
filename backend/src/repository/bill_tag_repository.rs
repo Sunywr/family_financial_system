@@ -23,18 +23,14 @@ pub async fn list(
     pool: &sqlx::MySqlPool,
     query: &BillTagListQuery,
 ) -> Result<(Vec<BillTag>, u64), AppError> {
-    let user_id = query.user_id.map(parse_u64_id).transpose()?;
     let keyword = query.keyword.as_ref().map(|value| format!("%{value}%"));
 
     let total_row = sqlx::query(
         "SELECT COUNT(*) AS total
          FROM bill_tags
          WHERE deleted_at IS NULL
-           AND (? IS NULL OR user_id = ?)
            AND (? IS NULL OR name LIKE ?)",
     )
-    .bind(user_id)
-    .bind(user_id)
     .bind(&keyword)
     .bind(&keyword)
     .fetch_one(pool)
@@ -45,13 +41,10 @@ pub async fn list(
                 "SELECT id, user_id, name, created_at, updated_at
          FROM bill_tags
          WHERE deleted_at IS NULL
-           AND (? IS NULL OR user_id = ?)
            AND (? IS NULL OR name LIKE ?)
          ORDER BY id DESC
          LIMIT ? OFFSET ?",
     )
-    .bind(user_id)
-    .bind(user_id)
     .bind(&keyword)
     .bind(&keyword)
     .bind(query.pagination.page_size)
@@ -69,16 +62,14 @@ pub async fn list(
 
 pub async fn find_by_name(
     pool: &sqlx::MySqlPool,
-    user_id: u64,
     name: &str,
 ) -> Result<Option<BillTag>, AppError> {
     let row = sqlx::query(
         "SELECT id, user_id, name, created_at, updated_at
          FROM bill_tags
-         WHERE user_id = ? AND name = ? AND deleted_at IS NULL
+         WHERE name = ? AND deleted_at IS NULL
          LIMIT 1",
     )
-    .bind(parse_u64_id(user_id)?)
     .bind(name)
     .fetch_optional(pool)
     .await?;
@@ -141,8 +132,11 @@ pub async fn create(
     pool: &sqlx::MySqlPool,
     payload: &CreateBillTagRequest,
 ) -> Result<u64, AppError> {
+    let user_id = payload
+        .user_id
+        .ok_or_else(|| AppError::BadRequest("user_id is required".to_string()))?;
     let result = sqlx::query("INSERT INTO bill_tags (user_id, name) VALUES (?, ?)")
-        .bind(parse_u64_id(payload.user_id)?)
+        .bind(parse_u64_id(user_id)?)
         .bind(payload.name.trim())
         .execute(pool)
         .await?;
@@ -178,25 +172,32 @@ pub async fn soft_delete(pool: &sqlx::MySqlPool, id: u64) -> Result<(), AppError
     Ok(())
 }
 
-/// Returns up to 20 most frequently used tag names for a user, ordered by usage count DESC.
-pub async fn top_tags(pool: &sqlx::MySqlPool, user_id: u64) -> Result<Vec<BillTag>, AppError> {
-    let user_id_i64 = parse_u64_id(user_id)?;
+/// Returns up to 10 most frequently used tag names (optionally filtered by category), ordered by usage count DESC.
+pub async fn top_tags(pool: &sqlx::MySqlPool, category_id: Option<u64>) -> Result<Vec<BillTag>, AppError> {
     let rows = sqlx::query(
         "SELECT bt.id, bt.user_id, bt.name, bt.created_at, bt.updated_at
          FROM bill_tags bt
          LEFT JOIN (
              SELECT jt.tag_name, COUNT(*) AS usage_count
              FROM bills b
-             JOIN JSON_TABLE(b.tags, '$[*]' COLUMNS (tag_name VARCHAR(64) PATH '$')) AS jt
-             WHERE b.user_id = ? AND b.deleted_at IS NULL
+             JOIN JSON_TABLE(
+                 CASE
+                     WHEN b.tags IS NULL THEN JSON_ARRAY()
+                     WHEN JSON_VALID(b.tags) AND JSON_TYPE(b.tags) = 'ARRAY' THEN b.tags
+                     ELSE JSON_ARRAY()
+                 END,
+                 '$[*]' COLUMNS (tag_name VARCHAR(64) PATH '$')
+             ) AS jt
+             WHERE b.deleted_at IS NULL
+               AND (? IS NULL OR b.category_id = ?)
              GROUP BY jt.tag_name
-         ) usage ON usage.tag_name = bt.name
-         WHERE bt.user_id = ? AND bt.deleted_at IS NULL
-         ORDER BY COALESCE(usage.usage_count, 0) DESC, bt.id DESC
-         LIMIT 20",
+         ) tag_usage ON tag_usage.tag_name COLLATE utf8mb4_unicode_ci = bt.name
+         WHERE bt.deleted_at IS NULL
+         ORDER BY COALESCE(tag_usage.usage_count, 0) DESC, bt.id DESC
+            LIMIT 10",
     )
-    .bind(user_id_i64)
-    .bind(user_id_i64)
+    .bind(category_id.map(|id| id as i64))
+    .bind(category_id.map(|id| id as i64))
     .fetch_all(pool)
     .await?;
     rows.into_iter()

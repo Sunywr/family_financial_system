@@ -13,6 +13,7 @@ pub struct Debt {
     pub category_name: String,
     pub amount: String,
     pub period_count: u32,
+    pub paid_period_count: u32,
     pub period_unit: String,
     pub period_value: u32,
     pub payment_method: String,

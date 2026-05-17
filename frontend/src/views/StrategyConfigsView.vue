@@ -8,7 +8,7 @@
       <el-button type="primary" @click="openCreate">新增策略</el-button>
     </div>
 
-    <el-table :data="strategies.list" stripe>
+    <el-table v-loading="loading" :data="strategies.list" stripe>
       <el-table-column prop="strategy_name" label="策略名" min-width="160" />
       <el-table-column label="类型" width="100">
         <template #default="{ row }">
@@ -130,6 +130,7 @@ const riskLevelLabelMap: Record<string, string> = {
 }
 
 const strategies = ref<{ list: StrategyConfig[]; total: number }>({ list: [], total: 0 })
+const loading = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(50)
 const dialogVisible = ref(false)
@@ -173,8 +174,13 @@ function riskLevelTagType(level: string): '' | 'success' | 'warning' | 'danger' 
 }
 
 async function loadStrategies() {
-  const data = await fetchStrategies(currentPage.value, pageSize.value)
-  strategies.value = { list: data.list, total: data.total }
+  loading.value = true
+  try {
+    const data = await fetchStrategies(currentPage.value, pageSize.value)
+    strategies.value = { list: data.list, total: data.total }
+  } finally {
+    loading.value = false
+  }
 }
 
 function openCreate() {

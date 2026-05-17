@@ -20,7 +20,9 @@ use crate::{
 
 #[derive(Debug, Deserialize)]
 pub struct TopTagsQuery {
-    pub user_id: u64,
+    // kept for backward compat; ignored — we use auth_user_id from the token
+    pub user_id: Option<u64>,
+    pub category_id: Option<u64>,
 }
 
 pub async fn top_tags(
@@ -29,7 +31,7 @@ pub async fn top_tags(
     Query(query): Query<TopTagsQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     let auth_user_id = auth_service::authenticate_request(&state, &headers).await?;
-    let tags = bill_tag_service::top_tags(&state, query.user_id, auth_user_id).await?;
+    let tags = bill_tag_service::top_tags(&state, auth_user_id, query.category_id).await?;
     Ok(ok(tags))
 }
 

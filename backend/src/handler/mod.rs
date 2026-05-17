@@ -1,3 +1,4 @@
+pub mod auto_invest_plans;
 pub mod assets;
 pub mod auth;
 pub mod balance_calibrations;
@@ -11,6 +12,7 @@ pub mod dashboard;
 pub mod debts;
 pub mod health;
 pub mod intel;
+pub mod institutions;
 pub mod investment_transactions;
 pub mod investments;
 pub mod jobs;

@@ -28,6 +28,8 @@ export interface Bill {
   related_asset_name?: string | null
   related_debt_id?: number | null
   product_name?: string | null
+  product_code?: string | null
+  organization_name?: string | null
   special_status: string
 }
 
@@ -54,6 +56,7 @@ export interface CreateBillPayload {
   is_installment?: boolean
   installment_months?: number
   investment_action?: string
+  related_investment_id?: number
   product_code?: string
   product_name?: string
   organization_name?: string

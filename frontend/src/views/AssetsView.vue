@@ -7,7 +7,7 @@
         <el-button @click="search">查询</el-button>
       </div>
     </div>
-    <el-table :data="assets.list" stripe>
+    <el-table v-loading="loading" :data="assets.list" stripe>
       <el-table-column prop="id" label="ID" width="90" />
       <el-table-column prop="created_at" label="创建日期" width="170" />
       <el-table-column prop="name" label="名称" min-width="180" />
@@ -44,11 +44,17 @@ import { fetchAssets, type Asset } from '@/api/assets'
 const keyword = ref('')
 const currentPage = ref(1)
 const pageSize = ref(20)
+const loading = ref(false)
 const assets = ref<{ list: Asset[]; total: number }>({ list: [], total: 0 })
 const statusMap: Record<string, string> = { active: '使用中', archived: '已归档' }
 
 async function loadData() {
-  assets.value = await fetchAssets(keyword.value, currentPage.value, pageSize.value)
+  loading.value = true
+  try {
+    assets.value = await fetchAssets(keyword.value, currentPage.value, pageSize.value)
+  } finally {
+    loading.value = false
+  }
 }
 
 function search() {

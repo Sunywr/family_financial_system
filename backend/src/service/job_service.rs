@@ -12,9 +12,9 @@ use crate::{
         job::{JobListQuery, JobRunListQuery, TriggerJobRequest, UpdateJobRequest},
     },
     error::app_error::AppError,
-    model::{job_config::JobConfig, job_run::JobRun},
+    model::{job_config::{JobConfig, JobConfigSummary}, job_run::JobRun},
     repository::{job_repository, user_repository},
-    service::{dashboard_service, scoring_service},
+    service::{auto_invest_plan_service, budget_service, dashboard_service, scoring_service},
 };
 
 pub async fn seed_jobs(state: &AppState) -> Result<(), AppError> {
@@ -24,7 +24,7 @@ pub async fn seed_jobs(state: &AppState) -> Result<(), AppError> {
 pub async fn list_jobs(
     state: &AppState,
     query: &JobListQuery,
-) -> Result<(Vec<JobConfig>, u64), AppError> {
+) -> Result<(Vec<JobConfigSummary>, u64), AppError> {
     job_repository::list_jobs(state.db()?, query).await
 }
 
@@ -116,6 +116,8 @@ async fn execute_job(
         "stock_market_sync_daily" => run_stock_scoring_job(state).await,
         "wealth_sync_daily_slots" => run_wealth_scoring_job(state).await,
         "stock_realtime_sync" => run_stock_realtime_job(state).await,
+        "budget_generate_monthly" => run_budget_generate_job(state).await,
+        "auto_invest_generate_daily" => run_auto_invest_generate_job(state).await,
         _ => Err(AppError::BadRequest("unsupported job code".to_string())),
     };
 
@@ -192,8 +194,8 @@ struct ScheduledDebtBillRow {
     start_date: NaiveDate,
     end_date: Option<NaiveDate>,
     repay_deadline: Option<NaiveDate>,
-    category_id: u64,
     category_name: String,
+    category_id: u64,
     amount: Decimal,
     period_count: u32,
     period_unit: String,
@@ -267,6 +269,22 @@ fn format_money(value: Decimal) -> String {
 async fn run_debt_cycle_bill_generate_job(state: &AppState) -> Result<String, AppError> {
     let pool = state.db()?;
     let today = Utc::now().date_naive();
+    let cleaned_non_credit = sqlx::query(
+        "UPDATE bills b
+         LEFT JOIN debts d
+                ON d.id = b.related_debt_id
+               AND d.deleted_at IS NULL
+         SET b.deleted_at = CURRENT_TIMESTAMP,
+             b.updated_at = CURRENT_TIMESTAMP
+         WHERE b.related_debt_id IS NOT NULL
+           AND b.special_status = 'debt_cycle_auto'
+           AND b.deleted_at IS NULL
+           AND (d.id IS NULL OR d.payment_method <> 'credit_card')",
+    )
+    .execute(pool)
+    .await?
+    .rows_affected();
+
     let rows = sqlx::query(
         "SELECT d.id,
                 d.user_id,
@@ -289,7 +307,7 @@ async fn run_debt_cycle_bill_generate_job(state: &AppState) -> Result<String, Ap
          WHERE d.status = 'pending'
            AND d.deleted_at IS NULL
            AND d.start_date <= ?
-           AND d.payment_method IN ('cash', 'credit_card')",
+                     AND d.payment_method = 'credit_card'",
     )
     .bind(today)
     .fetch_all(pool)
@@ -397,7 +415,9 @@ async fn run_debt_cycle_bill_generate_job(state: &AppState) -> Result<String, Ap
         }
     }
 
-    Ok(format!("debt cycle bills generated: {created_count}"))
+    Ok(format!(
+        "debt cycle bills generated: {created_count}, cleaned legacy non-credit auto bills: {cleaned_non_credit}"
+    ))
 }
 
 async fn run_stock_scoring_job(state: &AppState) -> Result<String, AppError> {
@@ -413,6 +433,34 @@ async fn run_wealth_scoring_job(state: &AppState) -> Result<String, AppError> {
 async fn run_stock_realtime_job(state: &AppState) -> Result<String, AppError> {
     let affected = scoring_service::refresh_stock_scores(state).await?;
     Ok(format!("realtime stock scores refreshed: {affected}"))
+}
+
+async fn run_auto_invest_generate_job(state: &AppState) -> Result<String, AppError> {
+    let pool = state.db()?;
+    let today = Utc::now().date_naive();
+    let (visited, created) =
+        auto_invest_plan_service::generate_for_scheduler(pool, today).await?;
+    Ok(format!(
+        "auto_invest generate completed: {created} bills created, {visited} plans visited"
+    ))
+}
+
+async fn run_budget_generate_job(state: &AppState) -> Result<String, AppError> {
+    let pool = state.db()?;
+    let today = Utc::now().date_naive();
+    let month_start = NaiveDate::from_ymd_opt(today.year(), today.month(), 1)
+        .ok_or(AppError::Internal)?;
+    let users = user_repository::list_options(pool).await?;
+    let user_count = users.len();
+    let mut total_affected = 0usize;
+    for user in users {
+        let affected =
+            budget_service::generate_for_scheduler(pool, user.id, month_start).await?;
+        total_affected += affected;
+    }
+    Ok(format!(
+        "budget generate completed: {total_affected} entries for {user_count} users"
+    ))
 }
 
 fn validate_schedule(expr: &str) -> Result<(), AppError> {

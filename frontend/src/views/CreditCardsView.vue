@@ -11,7 +11,7 @@
       </div>
     </div>
 
-    <el-table :data="cards.list" stripe>
+    <el-table v-loading="loading" :data="cards.list" stripe>
       <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="user_id" label="用户ID" width="100" />
       <el-table-column prop="name" label="名称" min-width="180" />
@@ -88,6 +88,7 @@ import { fetchUsers, type User } from '@/api/users'
 
 const currentPage = ref(1)
 const pageSize = ref(20)
+const loading = ref(false)
 const cards = ref<{ list: CreditCard[]; total: number }>({
   list: [],
   total: 0
@@ -119,8 +120,13 @@ function resetForm() {
 }
 
 async function loadCards() {
-  const data = await fetchCreditCards(currentPage.value, pageSize.value)
-  cards.value = { list: data.list, total: data.total }
+  loading.value = true
+  try {
+    const data = await fetchCreditCards(currentPage.value, pageSize.value)
+    cards.value = { list: data.list, total: data.total }
+  } finally {
+    loading.value = false
+  }
 }
 
 async function loadUsers() {

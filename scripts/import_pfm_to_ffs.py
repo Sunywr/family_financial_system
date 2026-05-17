@@ -147,9 +147,15 @@ def map_debt_status(status: int) -> str:
 
 
 def should_skip_cycle_debt(row: dict[str, Any], debt_category_name: str, has_source_bill: bool) -> bool:
-    # Keep credit-card debts as-is; prune only clearly stale standalone cycle debts.
-    if debt_category_name == "credit_card" or has_source_bill:
+    # Keep credit-card debts as-is.
+    if debt_category_name == "credit_card":
         return False
+
+    # For non-credit debt, keep source templates and skip only generated children.
+    # In PFM generated rows carry source_debt_id, while templates have source_debt_id = NULL.
+    if row.get("source_debt_id") is not None:
+        return True
+
     if int(row.get("status") or 0) == 1:
         return True
     if Decimal(str(row.get("debt_amount") or 0)) <= Decimal("0"):
@@ -485,11 +491,11 @@ def import_debts(src, dst, category_maps: dict[str, dict[int, tuple[int, str]]])
         old_category = debt_categories[int(row["debt_type_id"])]
         normalized_category_name = map_debt_category_name(old_category["name"])
         new_category_id, new_category_name = category_maps["debt"][int(row["debt_type_id"])]
-        debt_category_name_by_debt_id[debt_id] = normalized_category_name
         source_bill_id = source_bill_map.get(debt_id)
         if should_skip_cycle_debt(row, normalized_category_name, source_bill_id is not None):
             skipped_cycle_debts += 1
             continue
+        debt_category_name_by_debt_id[debt_id] = normalized_category_name
         description = row["description"] or new_category_name
         payment_method = map_debt_payment_method(row, normalized_category_name, description)
         payload.append(
@@ -832,6 +838,7 @@ def import_bills_and_transactions(src, dst, category_maps, debt_category_by_id, 
             bill_type = "expense"
 
         debt_name = debt_category_by_id.get(int(row["debt_id"])) if row["debt_id"] is not None else None
+        related_debt_id = int(row["debt_id"]) if row["debt_id"] is not None and debt_name != "credit_card" else None
         is_installment = (
             row["debt_id"] is not None
             and (
@@ -889,6 +896,7 @@ def import_bills_and_transactions(src, dst, category_maps, debt_category_by_id, 
                 invest_meta["description"] if invest_meta is not None else None,
                 dec6(row["trade_share"]) if row["trade_share"] not in (None, 0) else None,
                 int(row["asset_id"]) if row["asset_id"] is not None else None,
+                related_debt_id,
                 "imported",
                 row["account_date"],
                 row["account_date"],
@@ -929,8 +937,8 @@ def import_bills_and_transactions(src, dst, category_maps, debt_category_by_id, 
             id, user_id, account_date, category_id, category_name, bill_type, payment_method, is_fixed_asset,
             amount, tags, remark, transfer_group_id, transfer_target_type, transfer_target_user_id, credit_card_id,
             is_installment, installment_months, investment_action, related_investment_id, product_code, product_name,
-            organization_name, share_amount, related_asset_id, special_status, created_at, updated_at
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            organization_name, share_amount, related_asset_id, related_debt_id, special_status, created_at, updated_at
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """,
         bill_rows,
     )

@@ -10,7 +10,7 @@
       <el-button type="primary" @click="generate">生成本月预算</el-button>
     </div>
 
-    <el-table :data="budgets.list" stripe>
+    <el-table v-loading="loading" :data="budgets.list" stripe>
       <el-table-column prop="category_name" label="分类" min-width="160" />
       <el-table-column prop="planned_amount" label="预算" width="120" />
       <el-table-column prop="actual_amount" label="实际" width="120" />
@@ -53,10 +53,16 @@ import { fetchBudgets, generateBudgets, type Budget } from '@/api/budgets'
 const budgets = ref<{ list: Budget[]; total: number }>({ list: [], total: 0 })
 const currentPage = ref(1)
 const pageSize = ref(50)
+const loading = ref(false)
 
 async function loadBudgets() {
-  const data = await fetchBudgets(currentPage.value, pageSize.value)
-  budgets.value = { list: data.list, total: data.total }
+  loading.value = true
+  try {
+    const data = await fetchBudgets(currentPage.value, pageSize.value)
+    budgets.value = { list: data.list, total: data.total }
+  } finally {
+    loading.value = false
+  }
 }
 
 async function generate() {

@@ -33,7 +33,42 @@
       </div>
     </div>
 
-    <el-table :data="bills.list" stripe>
+    <div v-if="isMobileView" class="mobile-cards">
+      <article v-for="row in bills.list" :key="row.id" class="mobile-card panel">
+        <div class="mobile-card-head">
+          <strong>#{{ row.id }} · {{ row.category_name }}</strong>
+          <span>{{ row.account_date }}</span>
+        </div>
+        <div class="mobile-card-row">
+          <span>金额</span>
+          <strong>{{ row.amount }}</strong>
+        </div>
+        <div class="mobile-card-row">
+          <span>类型</span>
+          <el-tag :type="billTypeTagType(row.bill_type)">{{ billTypeMap[row.bill_type] || row.bill_type }}</el-tag>
+        </div>
+        <div class="mobile-card-row">
+          <span>方式</span>
+          <el-tag :type="paymentMethodTagType(row.payment_method)">{{ formatPaymentMethod(row) }}</el-tag>
+        </div>
+        <div v-if="formatRelation(row)" class="mobile-card-row">
+          <span>关联</span>
+          <el-tag size="small" type="warning">{{ formatRelation(row) }}</el-tag>
+        </div>
+        <div v-if="row.tags?.length" class="mobile-tags">
+          <el-tag v-for="tag in row.tags || []" :key="tag" size="small" class="mr-4">{{ tag }}</el-tag>
+        </div>
+        <p v-if="row.remark" class="mobile-remark">{{ row.remark }}</p>
+        <div class="mobile-card-actions">
+          <el-button size="small" @click="copyBill(row)">复制</el-button>
+          <el-button size="small" type="primary" plain @click="editBill(row)">修改</el-button>
+          <el-button size="small" type="danger" plain @click="removeBill(row)">删除</el-button>
+        </div>
+      </article>
+      <div v-if="!bills.list.length" class="mobile-empty">暂无账单数据</div>
+    </div>
+
+    <el-table v-else :data="bills.list" stripe>
       <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="account_date" label="日期" width="110" />
       <el-table-column prop="category_name" label="分类" width="110" />
@@ -119,7 +154,7 @@
               :key="bt"
               :type="form.bill_type === bt ? 'primary' : 'default'"
               size="small"
-              @click="form.bill_type = bt"
+              @click="form.bill_type = bt; if (form.billGroup === 'investment') form.investment_action = bt"
             >{{ billTypeMap[bt] || bt }}</el-button>
           </div>
         </el-form-item>
@@ -136,17 +171,69 @@
           </div>
         </el-form-item>
 
-        <el-form-item v-if="form.billGroup === 'investment'" label="支付方式">
-          <div class="btn-group">
-            <el-button
-              v-for="pm in availablePaymentMethods"
-              :key="pm"
-              :type="form.payment_method === pm ? 'primary' : 'default'"
-              size="small"
-              @click="form.payment_method = pm"
-            >{{ paymentMap[pm] || pm }}</el-button>
-          </div>
-        </el-form-item>
+        <template v-if="form.billGroup === 'investment' && form.category_id">
+          <el-form-item label="支付方式">
+            <el-tag :type="form.payment_method === 'stock_account' ? 'warning' : 'success'" size="large">
+              {{ paymentMap[form.payment_method] || form.payment_method }}（自动）
+            </el-tag>
+          </el-form-item>
+
+          <el-form-item v-if="isOpenPosition" label="产品名称">
+            <el-input v-model="form.product_name" placeholder="例：贵州茅台" />
+          </el-form-item>
+
+          <el-form-item v-if="isOpenPosition" label="产品代码">
+            <el-input v-model="form.product_code" placeholder="例：600519" />
+          </el-form-item>
+
+          <el-form-item v-if="isOpenPosition" label="机构名称">
+            <el-select
+              v-model="form.organization_category"
+              placeholder="请选择机构分类"
+              style="width: 100%; margin-bottom: 8px;"
+              @change="onOrganizationCategoryChange"
+            >
+              <el-option
+                v-for="category in institutionCategories"
+                :key="category.code"
+                :label="category.name"
+                :value="category.code"
+              />
+            </el-select>
+            <el-select
+              v-model="form.organization_name"
+              filterable
+              placeholder="请选择机构名称"
+              style="width: 100%;"
+            >
+              <el-option
+                v-for="name in organizationNameOptions"
+                :key="name"
+                :label="name"
+                :value="name"
+              />
+            </el-select>
+          </el-form-item>
+
+          <el-form-item :label="shareAmountLabel">
+            <el-input v-model="form.share_amount" :placeholder="shareAmountPlaceholder" />
+            <div v-if="currentRelatedInvestment && !isOpenPosition" class="field-hint">
+              当前持仓：{{ currentRelatedInvestment.total_shares }}
+              <template v-if="form.bill_type === 'reduce_position'">，卖出份额不能超过当前持仓</template>
+            </div>
+          </el-form-item>
+
+          <el-form-item v-if="!isOpenPosition" label="关联投资">
+            <el-select v-model="form.related_investment_id" placeholder="请选择关联投资" style="width: 100%;" clearable>
+              <el-option
+                v-for="inv in investments"
+                :key="inv.id"
+                :label="`${inv.name}（${inv.code}）`"
+                :value="inv.id"
+              />
+            </el-select>
+          </el-form-item>
+        </template>
 
         <template v-else-if="form.billGroup === 'normal'">
           <el-form-item label="现金/信用卡">
@@ -242,10 +329,13 @@
             filterable
             allow-create
             default-first-option
-            placeholder="或输入并回车创建新标签"
+            remote
+            :remote-method="remoteSearchTags"
+            :loading="tagSearchLoading"
+            placeholder="搜索或输入并回车创建新标签"
             style="width: 100%;"
           >
-            <el-option v-for="tag in allTags" :key="tag.id" :label="tag.name" :value="tag.name" />
+            <el-option v-for="tag in searchedTags" :key="tag.id" :label="tag.name" :value="tag.name" />
           </el-select>
         </el-form-item>
 
@@ -295,11 +385,13 @@
         <el-button type="primary" @click="addTag">新增标签</el-button>
       </div>
     </el-dialog>
+
+    <el-button v-if="isMobileView" class="mobile-fab" type="primary" circle @click="openCreate">+</el-button>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -318,6 +410,8 @@ import {
   type BillTag
 } from '@/api/bill-tags'
 import { getStoredUser } from '@/api/client'
+import { fetchInvestments, type Investment } from '@/api/investments'
+import { fetchInstitutionCategories, type InstitutionCategory } from '@/api/institutions'
 const route = useRoute()
 const router = useRouter()
 
@@ -428,6 +522,7 @@ const dateRange = ref<[string, string] | []>([])
 const filterCategoryId = ref<number | undefined>(undefined)
 const filterMethodKey = ref<string | undefined>(undefined)
 const dialogVisible = ref(false)
+const isMobileView = ref(typeof window !== 'undefined' ? window.innerWidth <= 900 : false)
 const tagDialogVisible = ref(false)
 const tagKeyword = ref('')
 const newTagName = ref('')
@@ -439,6 +534,10 @@ const categories = ref<ConfigItem[]>([])
 const allTags = ref<BillTag[]>([])
 const topTags = ref<BillTag[]>([])
 const tagManagerTags = ref<BillTag[]>([])
+const searchedTags = ref<BillTag[]>([])
+const tagSearchLoading = ref(false)
+const investments = ref<Investment[]>([])
+const institutionCategories = ref<InstitutionCategory[]>([])
 const tagManagerPage = ref(1)
 const tagManagerPageSize = ref(20)
 const tagManagerTotal = ref(0)
@@ -455,6 +554,7 @@ const isAdmin = computed(() => currentUser?.username === 'admin')
 const currentUserId = computed(() => currentUser?.id ?? 0)
 const dashboardContextMap: Record<string, string> = {
   'credit-card-pending': '信用卡待还',
+  'credit-card-row': '信用卡对账',
   'pending-window': '待处理账单窗口'
 }
 const dashboardContextLabel = computed(() => {
@@ -486,7 +586,15 @@ const form = reactive({
   related_asset_id: undefined as number | undefined,
   amount: '',
   remark: '',
-  tags: [] as string[]
+  tags: [] as string[],
+  // investment-specific fields
+  investment_action: '',
+  related_investment_id: undefined as number | undefined,
+  product_code: '',
+  product_name: '',
+  organization_category: '',
+  organization_name: '',
+  share_amount: ''
 })
 
 const currentBillTypes = computed(() =>
@@ -502,12 +610,45 @@ const availablePaymentMethods = computed(() => {
   if (form.billGroup === 'investment') return ['cash', 'stock_account']
   return options.payment_methods.filter((pm) => pm !== 'stock_account')
 })
+const selectedCategoryName = computed(
+  () => categories.value.find((c) => c.id === form.category_id)?.name ?? ''
+)
+const isOpenPosition = computed(() => form.bill_type === 'open_position')
+const currentRelatedInvestment = computed(() =>
+  investments.value.find((investment) => investment.id === form.related_investment_id)
+)
+const selectedInstitutionCategory = computed(() =>
+  institutionCategories.value.find((category) => category.code === form.organization_category)
+)
+const organizationNameOptions = computed(() => {
+  return (selectedInstitutionCategory.value?.providers || []).map((provider) => provider.name)
+})
+const shareAmountLabel = computed(() => {
+  if (form.bill_type === 'open_position') return '购买份额'
+  if (form.bill_type === 'add_position') return '本次加仓份额'
+  if (form.bill_type === 'reduce_position') return '本次卖出份额'
+  if (form.bill_type === 'dividend') return '本次分红对应份额'
+  return '份数/份额'
+})
+const shareAmountPlaceholder = computed(() => {
+  if (form.bill_type === 'open_position') return '填写建仓时购买的份额'
+  if (form.bill_type === 'add_position') return '填写本次加仓购买的份额'
+  if (form.bill_type === 'reduce_position') return '填写本次减仓卖出的份额'
+  if (form.bill_type === 'dividend') return '填写本次分红对应的份额'
+  return '填写本次操作份额'
+})
+
+function parsePositiveDecimal(value: string) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed <= 0) return undefined
+  return parsed
+}
 
 function selectBillGroup(group: 'normal' | 'investment') {
   form.billGroup = group
   form.bill_type = ''
   form.category_id = 0
-  form.payment_method = group === 'investment' ? 'stock_account' : 'cash'
+  form.payment_method = 'cash'
   form.payment_base = 'cash'
   form.credit_card_id = undefined
   form.is_installment = false
@@ -515,6 +656,15 @@ function selectBillGroup(group: 'normal' | 'investment') {
   form.is_presale = false
   form.is_fixed_asset = false
   form.related_asset_id = undefined
+  form.investment_action = ''
+  form.related_investment_id = undefined
+  form.product_code = ''
+  form.product_name = ''
+  form.organization_category = ''
+  form.organization_name = ''
+  form.share_amount = ''
+  investments.value = []
+  institutionCategories.value = []
 }
 
 function setPaymentBase(base: 'cash' | 'credit_card') {
@@ -560,6 +710,76 @@ function resolvePaymentMethod() {
 
 function selectCategory(id: number) {
   form.category_id = id
+  void loadTopTags(id)
+  const catName = categories.value.find((c) => c.id === id)?.name ?? ''
+  if (catName === 'stock') {
+    form.payment_method = 'stock_account'
+    form.organization_category = ''
+    form.organization_name = ''
+    void loadInvestmentList('stock')
+    void loadInstitutionCategories('stock')
+  } else if (catName === 'wealth') {
+    form.payment_method = 'cash'
+    form.organization_category = ''
+    form.organization_name = ''
+    void loadInvestmentList('wealth')
+    void loadInstitutionCategories('wealth')
+  } else {
+    investments.value = []
+    institutionCategories.value = []
+    form.organization_category = ''
+    form.organization_name = ''
+  }
+  form.related_investment_id = undefined
+}
+
+async function loadInstitutionCategories(investmentType: 'stock' | 'wealth') {
+  try {
+    institutionCategories.value = await fetchInstitutionCategories(investmentType)
+    syncOrganizationCategoryByName(form.organization_name)
+    const categoryStillValid = institutionCategories.value.some(
+      (category) => category.code === form.organization_category
+    )
+    if (!categoryStillValid) {
+      form.organization_category = ''
+    }
+    if (!form.organization_category && institutionCategories.value.length > 0) {
+      form.organization_category = institutionCategories.value[0].code
+    }
+    if (form.organization_name && !organizationNameOptions.value.includes(form.organization_name)) {
+      form.organization_name = ''
+    }
+  } catch {
+    institutionCategories.value = []
+    form.organization_category = ''
+    form.organization_name = ''
+  }
+}
+
+function syncOrganizationCategoryByName(name: string) {
+  const normalized = name.trim()
+  if (!normalized) return
+  const matched = institutionCategories.value.find((category) =>
+    category.providers.some((provider) => provider.name === normalized)
+  )
+  if (matched) {
+    form.organization_category = matched.code
+  }
+}
+
+function onOrganizationCategoryChange() {
+  if (form.organization_name && !organizationNameOptions.value.includes(form.organization_name)) {
+    form.organization_name = ''
+  }
+}
+
+async function loadInvestmentList(investmentType: string) {
+  try {
+    const data = await fetchInvestments({ investment_type: investmentType, show_sold: false, page_size: 200 })
+    investments.value = data.list
+  } catch {
+    investments.value = []
+  }
 }
 
 function toggleTag(name: string) {
@@ -587,6 +807,15 @@ function resetForm() {
   form.amount = ''
   form.remark = ''
   form.tags = []
+  form.investment_action = ''
+  form.related_investment_id = undefined
+  form.product_code = ''
+  form.product_name = ''
+  form.organization_category = ''
+  form.organization_name = ''
+  form.share_amount = ''
+  investments.value = []
+  institutionCategories.value = []
 }
 
 async function loadBills() {
@@ -627,6 +856,10 @@ function resetFilters() {
 
 function goDashboard() {
   void router.push({ name: 'dashboard' })
+}
+
+function syncViewportMode() {
+  isMobileView.value = window.innerWidth <= 900
 }
 
 function applyRouteQuery() {
@@ -695,11 +928,29 @@ function onTagManagerPageSizeChange(size: number) {
   loadTagManagerPage()
 }
 
-async function loadTopTags() {
+async function loadTopTags(categoryId?: number) {
   try {
-    topTags.value = await fetchTopBillTags(currentUserId.value)
+    topTags.value = await fetchTopBillTags(categoryId)
+    searchedTags.value = topTags.value
   } catch {
     topTags.value = []
+    searchedTags.value = []
+  }
+}
+
+async function remoteSearchTags(keyword: string) {
+  if (!keyword) {
+    searchedTags.value = topTags.value
+    return
+  }
+  tagSearchLoading.value = true
+  try {
+    const data = await fetchBillTagsPage(1, 30, keyword)
+    searchedTags.value = data.list
+  } catch {
+    searchedTags.value = []
+  } finally {
+    tagSearchLoading.value = false
   }
 }
 
@@ -721,6 +972,7 @@ async function loadData() {
   }
   if (assetResult.status === 'fulfilled') assets.value = assetResult.value.list
   await Promise.allSettled([loadAllTags(), loadTopTags(), loadTagManagerPage()])
+  // Note: loadTopTags no longer requires userId
   resetForm()
 }
 
@@ -753,6 +1005,21 @@ function fillFormByBill(row: Bill, mode: 'copy' | 'edit') {
   form.amount = row.amount
   form.remark = row.remark || ''
   form.tags = [...(row.tags || [])]
+  // investment fields
+  form.investment_action = row.investment_action ?? ''
+  form.related_investment_id = row.related_investment_id ?? undefined
+  form.product_code = row.product_code ?? ''
+  form.product_name = row.product_name ?? ''
+  form.organization_category = ''
+  form.organization_name = row.organization_name ?? ''
+  form.share_amount = ''
+  if (form.billGroup === 'investment') {
+    const catName = categories.value.find((c) => c.id === row.category_id)?.name ?? ''
+    if (catName === 'stock' || catName === 'wealth') {
+      void loadInvestmentList(catName)
+      void loadInstitutionCategories(catName)
+    }
+  }
 }
 
 function copyBill(row: Bill) {
@@ -797,6 +1064,27 @@ async function submitBill() {
     ElMessage.warning('请选择关联资产')
     return
   }
+  if (form.billGroup === 'investment') {
+    if (!form.investment_action) { ElMessage.warning('请选择投资操作类型'); return }
+    if (form.bill_type === 'open_position') {
+      if (!form.product_name.trim()) { ElMessage.warning('请填写产品名称'); return }
+      if (!form.product_code.trim()) { ElMessage.warning('请填写产品代码'); return }
+      if (!form.organization_category.trim()) { ElMessage.warning('请选择机构分类'); return }
+      if (!form.organization_name.trim()) { ElMessage.warning('请填写机构名称'); return }
+      if (!form.share_amount.trim()) { ElMessage.warning('请填写购买份数'); return }
+    } else {
+      if (!form.related_investment_id) { ElMessage.warning('请选择关联投资'); return }
+      if (!form.share_amount.trim()) { ElMessage.warning('请填写份数/份额'); return }
+      if (form.bill_type === 'reduce_position') {
+        const currentHolding = parsePositiveDecimal(currentRelatedInvestment.value?.total_shares || '')
+        const reduceShares = parsePositiveDecimal(form.share_amount)
+        if (currentHolding !== undefined && reduceShares !== undefined && reduceShares > currentHolding) {
+          ElMessage.warning('减仓份额不能超过当前持仓份额')
+          return
+        }
+      }
+    }
+  }
 
   const payload = {
     account_date: form.account_date,
@@ -810,7 +1098,13 @@ async function submitBill() {
     credit_card_id: payment_method === 'credit_card' ? form.credit_card_id : undefined,
     is_installment: form.is_installment || undefined,
     installment_months: form.is_installment ? form.installment_months : undefined,
-    related_asset_id: form.is_fixed_asset ? form.related_asset_id : undefined
+    related_asset_id: form.is_fixed_asset ? form.related_asset_id : undefined,
+    investment_action: form.billGroup === 'investment' ? form.investment_action : undefined,
+    product_code: form.billGroup === 'investment' && form.bill_type === 'open_position' ? form.product_code : undefined,
+    product_name: form.billGroup === 'investment' && form.bill_type === 'open_position' ? form.product_name : undefined,
+    organization_name: form.billGroup === 'investment' && form.bill_type === 'open_position' ? form.organization_name : undefined,
+    share_amount: form.billGroup === 'investment' ? form.share_amount : undefined,
+    related_investment_id: form.billGroup === 'investment' && form.bill_type !== 'open_position' ? form.related_investment_id : undefined
   }
 
   try {
@@ -841,7 +1135,7 @@ async function addTag() {
   const name = newTagName.value.trim()
   if (!name) return
   try {
-    await createBillTag({ user_id: currentUserId.value, name })
+    await createBillTag({ name })
     newTagName.value = ''
     await Promise.allSettled([loadAllTags(), loadTopTags(), loadTagManagerPage()])
   } catch {
@@ -869,12 +1163,18 @@ async function removeTag(id: number) {
 }
 
 onMounted(async () => {
+  syncViewportMode()
+  window.addEventListener('resize', syncViewportMode)
   try {
     applyRouteQuery()
     await loadData()
   } catch {
     ElMessage.error('账单页面初始化失败')
   }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', syncViewportMode)
 })
 </script>
 
@@ -891,6 +1191,7 @@ onMounted(async () => {
 .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .btn-group { display: flex; flex-wrap: wrap; gap: 8px; }
+.field-hint { margin-top: 6px; color: #6b7280; font-size: 12px; line-height: 1.5; }
 .mb-8 { margin-bottom: 8px; }
 .mb-12 { margin-bottom: 12px; }
 .mt-12 { margin-top: 12px; }
@@ -898,4 +1199,65 @@ onMounted(async () => {
 .pagination-wrap { margin-top: 16px; display: flex; justify-content: flex-end; }
 .context-banner { margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px; }
 .context-actions { display: flex; justify-content: flex-end; }
+
+.mobile-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mobile-card {
+  padding: 12px;
+  border-radius: 14px;
+}
+
+.mobile-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.mobile-card-row {
+  margin-top: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.mobile-tags {
+  margin-top: 8px;
+}
+
+.mobile-remark {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: #475569;
+}
+
+.mobile-card-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mobile-empty {
+  padding: 18px 10px;
+  text-align: center;
+  color: #94a3b8;
+}
+
+.mobile-fab {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 40;
+  width: 44px;
+  height: 44px;
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.3);
+}
 </style>

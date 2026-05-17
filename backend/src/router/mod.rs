@@ -47,6 +47,16 @@ pub fn create_router(state: AppState) -> Router {
                 .delete(handler::budgets::delete),
         )
         .route(
+            "/api/auto-invest-plans",
+            get(handler::auto_invest_plans::list).post(handler::auto_invest_plans::create),
+        )
+        .route(
+            "/api/auto-invest-plans/{id}",
+            get(handler::auto_invest_plans::detail)
+                .put(handler::auto_invest_plans::update)
+                .delete(handler::auto_invest_plans::delete),
+        )
+        .route(
             "/api/brands",
             get(handler::brands::list).post(handler::brands::create),
         )
@@ -175,7 +185,8 @@ pub fn create_router(state: AppState) -> Router {
             get(handler::credit_cards::detail)
                 .put(handler::credit_cards::update)
                 .delete(handler::credit_cards::delete),
-        );
+        )
+        .route("/api/config/institutions", get(handler::institutions::list));
 
     Router::new()
         .route("/api/health", get(handler::health::health))

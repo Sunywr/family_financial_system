@@ -1,3 +1,4 @@
+pub mod auto_invest_plan_service;
 pub mod asset_service;
 pub mod auth_service;
 pub mod balance_calibration_service;
@@ -12,6 +13,7 @@ pub mod dashboard_service;
 pub mod debt_service;
 pub mod health_service;
 pub mod intel_service;
+pub mod institution_catalog_service;
 pub mod investment_service;
 pub mod investment_transaction_service;
 pub mod job_service;

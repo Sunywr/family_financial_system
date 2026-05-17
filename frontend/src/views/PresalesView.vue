@@ -7,7 +7,7 @@
         <el-button @click="search">查询</el-button>
       </div>
     </div>
-    <el-table :data="presales.list" stripe>
+    <el-table v-loading="loading" :data="presales.list" stripe>
       <el-table-column prop="id" label="ID" width="90" />
       <el-table-column prop="deposit_date" label="定金日期" width="120" />
       <el-table-column prop="final_payment_date" label="尾款日期" width="120" />
@@ -45,11 +45,17 @@ import { fetchPresales, type Presale } from '@/api/presales'
 const keyword = ref('')
 const currentPage = ref(1)
 const pageSize = ref(20)
+const loading = ref(false)
 const presales = ref<{ list: Presale[]; total: number }>({ list: [], total: 0 })
 const statusMap: Record<string, string> = { pending: '待完成', settled: '已完成' }
 
 async function loadData() {
-  presales.value = await fetchPresales(keyword.value, currentPage.value, pageSize.value)
+  loading.value = true
+  try {
+    presales.value = await fetchPresales(keyword.value, currentPage.value, pageSize.value)
+  } finally {
+    loading.value = false
+  }
 }
 
 function search() {
